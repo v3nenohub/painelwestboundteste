@@ -22,7 +22,6 @@ local function IsValidKey(inputKey)
     return false, "invalid"
 end
 
--- FUNÇÕES ESSENCIAIS PARA DETECÇÃO DE DISPOSITIVO CORRIGIDAS
 local function SafeGetService(serviceName)
     local success, service = pcall(function()
         return game:GetService(serviceName)
@@ -40,19 +39,6 @@ local ReplicatedStorage = SafeGetService("ReplicatedStorage") or game.Replicated
 local LocalPlayer = Players and Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- Funções para detecção de dispositivo CORRIGIDAS
-local function IsMobileDevice()
-    if UserInputService then
-        return UserInputService.TouchEnabled
-    end
-    return false
-end
-
-local function IsPCDevice()
-    return not IsMobileDevice()
-end
-
--- Variáveis globais do aimbot
 local AimbotEnabled = false
 local AimbotMobileAlwaysOn = false
 local AimBind = Enum.KeyCode.E
@@ -60,9 +46,9 @@ local AimbotTeamCheck = false
 local FriendCheckEnabled = true
 local CurrentTarget = nil
 local LastCameraCFrame = Camera.CFrame
+local FOVCircle = nil
 local AimbotMobileFloatingButton = nil
 
--- Inicializar configurações globais
 getgenv().AimbotEnabled = false
 getgenv().AimbotKey = AimBind
 getgenv().AimbotFOV = 150
@@ -70,7 +56,6 @@ getgenv().FriendCheckEnabled = FriendCheckEnabled
 getgenv().AimPart = "Head"
 getgenv().AimbotSmoothness = 0.3
 
--- Função para verificar se o alvo é válido
 local function IsValidTarget(targetPlr)
     if not targetPlr or not targetPlr.Character then return false end
     local humanoid = targetPlr.Character:FindFirstChild("Humanoid")
@@ -84,20 +69,18 @@ local function IsValidTarget(targetPlr)
     return not passive
 end
 
--- Função para verificar status de amigo
 local function CheckFriendStatus(targetPlr)
     local isFriend = false
     pcall(function() isFriend = LocalPlayer:IsFriendsWith(targetPlr.UserId) end)
     return isFriend
 end
 
--- Função para encontrar jogador mais próximo
 local function GetClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = getgenv().AimbotFOV
     local mouseLocation = Vector2.new(0, 0)
     
-    local isMobile = IsMobileDevice()
+    local isMobile = UserInputService and UserInputService.TouchEnabled
     
     if not isMobile then
         pcall(function() mouseLocation = UserInputService:GetMouseLocation() end)
@@ -107,12 +90,10 @@ local function GetClosestPlayer()
     
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= LocalPlayer and IsValidTarget(v) then
-            -- Verificar friend check
             if getgenv().FriendCheckEnabled and CheckFriendStatus(v) then 
                 continue
             end
             
-            -- Verificar team check
             if AimbotTeamCheck and v.Team == LocalPlayer.Team then
                 continue
             end
@@ -133,7 +114,6 @@ local function GetClosestPlayer()
     return closestPlayer
 end
 
--- Função para verificar se o usuário está movendo a câmera
 local function IsUserMovingCamera()
     local currentCFrame = Camera.CFrame
     local moved = (currentCFrame.Position - LastCameraCFrame.Position).Magnitude > 0.1
@@ -141,8 +121,7 @@ local function IsUserMovingCamera()
     return moved
 end
 
--- Função para criar botão flutuante do aimbot mobile
-local function CreateAimbotMobileFloatingButton(parentGui)
+local function CreateAimbotMobileFloatingButton(ScreenGui)
     if AimbotMobileFloatingButton then
         AimbotMobileFloatingButton:Destroy()
         AimbotMobileFloatingButton = nil
@@ -158,19 +137,17 @@ local function CreateAimbotMobileFloatingButton(parentGui)
     AimbotMobileFloatingButton.Font = Enum.Font.SourceSansBold
     AimbotMobileFloatingButton.TextSize = 14
     AimbotMobileFloatingButton.ZIndex = 1000
-    AimbotMobileFloatingButton.Parent = parentGui
+    AimbotMobileFloatingButton.Parent = ScreenGui
     
     local Corner = Instance.new("UICorner")
     Corner.CornerRadius = UDim.new(1, 0)
     Corner.Parent = AimbotMobileFloatingButton
     
-    -- Efeito visual
     local UIStroke = Instance.new("UIStroke")
     UIStroke.Color = Color3.fromRGB(255, 255, 255)
     UIStroke.Thickness = 3
     UIStroke.Parent = AimbotMobileFloatingButton
     
-    -- Sistema de arrastar
     local dragging = false
     local dragInput, dragStart, startPos
     
@@ -180,13 +157,11 @@ local function CreateAimbotMobileFloatingButton(parentGui)
             dragStart = input.Position
             startPos = AimbotMobileFloatingButton.Position
             
-            -- Feedback visual ao tocar
             AimbotMobileFloatingButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
             
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
-                    -- Restaurar cor baseado no estado
                     if AimbotMobileAlwaysOn then
                         AimbotMobileFloatingButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
                     else
@@ -203,18 +178,15 @@ local function CreateAimbotMobileFloatingButton(parentGui)
         end
     end)
     
-    if UserInputService then
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and (input == dragInput) then
-                local delta = input.Position - dragStart
-                local newX = math.clamp(startPos.X.Offset + delta.X, 0, parentGui.AbsoluteSize.X - 70)
-                local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, parentGui.AbsoluteSize.Y - 70)
-                AimbotMobileFloatingButton.Position = UDim2.new(0, newX, 0, newY)
-            end
-        end)
-    end
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input == dragInput) then
+            local delta = input.Position - dragStart
+            local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - 70)
+            local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - 70)
+            AimbotMobileFloatingButton.Position = UDim2.new(0, newX, 0, newY)
+        end
+    end)
     
-    -- Toggle do aimbot mobile
     AimbotMobileFloatingButton.MouseButton1Click:Connect(function()
         AimbotMobileAlwaysOn = not AimbotMobileAlwaysOn
         
@@ -226,27 +198,47 @@ local function CreateAimbotMobileFloatingButton(parentGui)
             AimbotMobileFloatingButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
             AimbotMobileFloatingButton.Text = "AIM OFF"
             AimbotMobileFloatingButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-            CurrentTarget = nil  -- Limpar alvo atual
+            CurrentTarget = nil
         end
     end)
     
     return AimbotMobileFloatingButton
 end
 
--- Função principal do loop do aimbot
-local function SetupAimbotLoop()
-    local isMobile = IsMobileDevice()
+local function SetupAimbotLoop(ScreenGui, Notify)
+    local isMobile = UserInputService and UserInputService.TouchEnabled
     
-    -- Conexão principal do aimbot
+    if not isMobile then
+        local success, circle = pcall(function()
+            local draw = Drawing.new("Circle")
+            draw.Thickness = 1
+            draw.NumSides = 60
+            draw.Radius = getgenv().AimbotFOV
+            draw.Filled = false
+            draw.Visible = false
+            draw.Color = Color3.fromRGB(255, 0, 0)
+            return draw
+        end)
+        if success then FOVCircle = circle end
+    end
+    
     local aimbotConnection = RunService.RenderStepped:Connect(function()
-        -- LÓGICA AIMBOT DESKTOP (COM KEYBIND)
+        if FOVCircle then
+            FOVCircle.Visible = getgenv().AimbotEnabled
+            FOVCircle.Radius = getgenv().AimbotFOV
+            
+            if getgenv().AimbotEnabled and not isMobile then
+                local mousePos = UserInputService:GetMouseLocation()
+                FOVCircle.Position = mousePos
+            end
+        end
+        
         if getgenv().AimbotEnabled and not AimbotMobileAlwaysOn then
             if UserInputService and UserInputService:IsKeyDown(getgenv().AimbotKey) then
                 local targetPlayer = GetClosestPlayer()
                 if targetPlayer and targetPlayer.Character then
                     local targetPart = targetPlayer.Character:FindFirstChild(getgenv().AimPart) or targetPlayer.Character.PrimaryPart
                     if targetPart then
-                        -- Suavizar o movimento da câmera
                         local currentCFrame = Camera.CFrame
                         local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
                         Camera.CFrame = currentCFrame:Lerp(targetCFrame, getgenv().AimbotSmoothness)
@@ -254,34 +246,27 @@ local function SetupAimbotLoop()
                 end
             end
         
-        -- LÓGICA AIMBOT MOBILE (AUTOMÁTICO)
         elseif AimbotMobileAlwaysOn then
-            -- Verificar se o usuário está movendo a câmera manualmente
             if IsUserMovingCamera() then
-                CurrentTarget = nil  -- Se usuário mover, resetar alvo
+                CurrentTarget = nil
             end
             
-            -- Se não tem alvo atual ou alvo atual não é mais válido, encontrar novo
             if not CurrentTarget or not CurrentTarget.Parent or not IsValidTarget(CurrentTarget) then
                 CurrentTarget = GetClosestPlayer()
             end
             
-            -- Se tem alvo válido, mirar nele
             if CurrentTarget and CurrentTarget.Character then
                 local targetPart = CurrentTarget.Character:FindFirstChild(getgenv().AimPart) or CurrentTarget.Character.PrimaryPart
                 if targetPart then
-                    -- Verificar se o alvo ainda está dentro do FOV
                     local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
                     local distance = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
                     
                     if onScreen and distance < getgenv().AimbotFOV then
-                        -- Suavizar o movimento da câmera
                         local currentCFrame = Camera.CFrame
                         local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
                         Camera.CFrame = currentCFrame:Lerp(targetCFrame, getgenv().AimbotSmoothness)
                     else
-                        -- Alvo saiu do FOV, procurar novo
                         CurrentTarget = GetClosestPlayer()
                     end
                 end
@@ -292,56 +277,171 @@ local function SetupAimbotLoop()
     return aimbotConnection
 end
 
--- Função para configurar aimbot na interface
 local function SetupAimbotInInterface(PVP_Page, Notify, NewSwitch, NewKeybind, NewSlider)
-    -- AIMBOT DESKTOP
     NewSwitch(PVP_Page, "AIMBOT DESKTOP", function(s)
         getgenv().AimbotEnabled = s
         AimbotEnabled = s
+        
+        if s then
+            local Players = game:GetService("Players")
+            local RunService = game:GetService("RunService")
+            local UserInputService = game:GetService("UserInputService")
+            local LocalPlayer = Players.LocalPlayer
+            local Camera = workspace.CurrentCamera
+
+            getgenv().AimbotKey = Enum.KeyCode.E
+            getgenv().AimbotEnabled = true
+            getgenv().AimbotFOV = 150
+            getgenv().AimPart = "Head"
+            getgenv().FriendCheckEnabled = true
+
+            local function GetClosestPlayer()
+                local closest = nil
+                local shortestDistance = getgenv().AimbotFOV
+                local mouseLocation = UserInputService:GetMouseLocation()
+
+                for _, v in pairs(Players:GetPlayers()) do
+                    if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(getgenv().AimPart) then
+                        local head = v.Character[getgenv().AimPart]
+                        local hum = v.Character:FindFirstChildOfClass("Humanoid")
+                        
+                        local passive = v.Character:FindFirstChild("Passive") or (v:FindFirstChild("States") and v.States:FindFirstChild("Passive") and v.States.Passive.Value)
+                        local isFriend = false
+                        pcall(function() isFriend = LocalPlayer:IsFriendsWith(v.UserId) end)
+
+                        if hum and hum.Health > 0 and not passive then
+                            if getgenv().FriendCheckEnabled and isFriend then continue end
+                            
+                            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                            if onScreen then
+                                local distance = (Vector2.new(pos.X, pos.Y) - mouseLocation).Magnitude
+                                if distance < shortestDistance then
+                                    closest = head
+                                    shortestDistance = distance
+                                end
+                            end
+                        end
+                    end
+                end
+                return closest
+            end
+
+            RunService.RenderStepped:Connect(function()
+                if getgenv().AimbotEnabled and UserInputService:IsKeyDown(getgenv().AimbotKey) then
+                    local target = GetClosestPlayer()
+                    if target then
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+                    end
+                end
+            end)
+            
+            Notify("AIMBOT DESKTOP ATIVADO")
+        else
+            Notify("AIMBOT DESKTOP DESATIVADO")
+        end
     end)
 
     local aimbotKeybindBtn = NewKeybind(PVP_Page, "AIMBOT KEYBIND", AimBind, function(k)
         getgenv().AimbotKey = k
         AimBind = k
+        Notify("TECLA DO AIMBOT ALTERADA PARA: " .. k.Name)
     end)
 
-    -- AIMBOT MOBILE COM BOTÃO FLUTUANTE
     NewSwitch(PVP_Page, "AIMBOT MOBILE", function(s)
         AimbotMobileAlwaysOn = s
+        AimbotMobileEnabled = s
         
         if s then
-            -- Se ativar mobile, desativa desktop
             getgenv().AimbotEnabled = false
             AimbotEnabled = false
-        else
-            CurrentTarget = nil  -- Limpar alvo atual
-            if AimbotMobileFloatingButton then
-                AimbotMobileFloatingButton:Destroy()
-                AimbotMobileFloatingButton = nil
+            
+            local Players = game:GetService("Players")
+            local RunService = game:GetService("RunService")
+            local LocalPlayer = Players.LocalPlayer
+            local Camera = workspace.CurrentCamera
+
+            getgenv().AimbotEnabled = true
+            getgenv().AimbotFOV = 150
+            getgenv().AimPart = "Head"
+            getgenv().TeamCheckEnabled = false
+            getgenv().FriendCheckEnabled = true
+
+            local function GetClosestPlayer()
+                local closest = nil
+                local shortestDistance = getgenv().AimbotFOV
+                local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+                for _, v in pairs(Players:GetPlayers()) do
+                    if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(getgenv().AimPart) then
+                        local head = v.Character[getgenv().AimPart]
+                        local hum = v.Character:FindFirstChildOfClass("Humanoid")
+                        
+                        local passive = v.Character:FindFirstChild("Passive") or (v:FindFirstChild("States") and v.States:FindFirstChild("Passive") and v.States.Passive.Value)
+                        local isFriend = false
+                        pcall(function() isFriend = LocalPlayer:IsFriendsWith(v.UserId) end)
+
+                        if hum and hum.Health > 0 and not passive then
+                            if getgenv().FriendCheckEnabled and isFriend then continue end
+                            
+                            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                            if onScreen then
+                                local distance = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                                if distance < shortestDistance then
+                                    closest = head
+                                    shortestDistance = distance
+                                end
+                            end
+                        end
+                    end
+                end
+                return closest
             end
+
+            RunService.RenderStepped:Connect(function()
+                if getgenv().AimbotEnabled then
+                    local target = GetClosestPlayer()
+                    if target then
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+                    end
+                end
+            end)
+            
+            Notify("AIMBOT MOBILE ATIVADO")
+        else
+            CurrentTarget = nil
+            Notify("AIMBOT MOBILE DESATIVADO")
         end
     end)
 
     NewSwitch(PVP_Page, "TEAM CHECK", function(s)
         AimbotTeamCheck = s
+        Notify(s and "TEAM CHECK ATIVADO" or "TEAM CHECK DESATIVADO")
     end)
 
     NewSwitch(PVP_Page, "FRIEND CHECK", function(s)
         getgenv().FriendCheckEnabled = s
         FriendCheckEnabled = s
+        Notify(s and "FRIEND CHECK ATIVADO" or "FRIEND CHECK DESATIVADO")
     end)
 
     NewSlider(PVP_Page, "AIMBOT FOV SIZE", 50, 300, getgenv().AimbotFOV, function(v)
         getgenv().AimbotFOV = v
+        if FOVCircle then FOVCircle.Radius = v end
+        Notify("TAMANHO DO FOV: " .. v)
     end)
 
     NewSlider(PVP_Page, "AIMBOT SMOOTHNESS", 0.1, 0.9, getgenv().AimbotSmoothness, function(v)
         getgenv().AimbotSmoothness = v
+        Notify("SUAVIDADE DO AIMBOT: " .. string.format("%.1f", v))
     end)
 end
 
--- Função para limpar recursos do aimbot
 local function CleanupAimbot()
+    if FOVCircle then 
+        pcall(function() FOVCircle:Remove() end) 
+        FOVCircle = nil
+    end
+    
     if AimbotMobileFloatingButton then
         AimbotMobileFloatingButton:Destroy()
         AimbotMobileFloatingButton = nil
@@ -352,28 +452,15 @@ local function CleanupAimbot()
     getgenv().AimbotEnabled = false
 end
 
--- FUNÇÃO DO PAINEL DE LOGIN RESPONSIVO
 local function CreateLoginPanel()
     local LoginScreenGui = Instance.new("ScreenGui")
     LoginScreenGui.Name = "V3NENO_HUB_LOGIN"
     LoginScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     LoginScreenGui.Parent = game.CoreGui or LocalPlayer.PlayerGui
     
-    local isMobile = IsMobileDevice()
-    local screenSize = Camera.ViewportSize
-    
     local MainFrame = Instance.new("Frame")
-    if isMobile then
-        -- Tamanhos otimizados para mobile
-        local width = math.min(320, screenSize.X * 0.85)
-        local height = math.min(380, screenSize.Y * 0.75)
-        MainFrame.Size = UDim2.new(0, width, 0, height)
-        MainFrame.Position = UDim2.new(0.5, -width/2, 0.5, -height/2)
-    else
-        MainFrame.Size = UDim2.new(0, 400, 0, 450)
-        MainFrame.Position = UDim2.new(0.5, -200, 0.5, -225)
-    end
-    
+    MainFrame.Size = UDim2.new(0, 400, 0, 450)
+    MainFrame.Position = UDim2.new(0.5, -200, 0.5, -225)
     MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
     MainFrame.Parent = LoginScreenGui
     MainFrame.Active = true
@@ -389,7 +476,7 @@ local function CreateLoginPanel()
     Stroke.Parent = MainFrame
     
     local Header = Instance.new("Frame")
-    Header.Size = UDim2.new(1, 0, 0, isMobile and 50 or 70)
+    Header.Size = UDim2.new(1, 0, 0, 70)
     Header.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     Header.Parent = MainFrame
     
@@ -399,34 +486,34 @@ local function CreateLoginPanel()
     
     local Title = Instance.new("TextLabel")
     Title.Size = UDim2.new(1, -40, 0.6, 0)
-    Title.Position = UDim2.new(0, 20, 0, 5)
+    Title.Position = UDim2.new(0, 20, 0, 10)
     Title.BackgroundTransparency = 1
     Title.Text = "V3NENO HUB ACCESS PANEL"
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Font = Enum.Font.SourceSansBold
-    Title.TextSize = isMobile and 14 or 20
+    Title.TextSize = 20
     Title.TextXAlignment = Enum.TextXAlignment.Left
     Title.Parent = Header
     
     local SubTitle = Instance.new("TextLabel")
     SubTitle.Size = UDim2.new(1, -40, 0.4, 0)
-    SubTitle.Position = UDim2.new(0, 20, 0.6, -5)
+    SubTitle.Position = UDim2.new(0, 20, 0.6, 0)
     SubTitle.BackgroundTransparency = 1
     SubTitle.Text = "WESTBOUND PRIVATE SCRIPT"
     SubTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
     SubTitle.Font = Enum.Font.SourceSans
-    SubTitle.TextSize = isMobile and 10 or 14
+    SubTitle.TextSize = 14
     SubTitle.TextXAlignment = Enum.TextXAlignment.Left
     SubTitle.Parent = Header
     
     local CloseBtn = Instance.new("TextButton")
-    CloseBtn.Size = UDim2.new(0, 25, 0, 25)
-    CloseBtn.Position = UDim2.new(1, -30, 0.5, -12)
+    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+    CloseBtn.Position = UDim2.new(1, -35, 0.5, -15)
     CloseBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     CloseBtn.Text = "X"
     CloseBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     CloseBtn.Font = Enum.Font.SourceSansBold
-    CloseBtn.TextSize = isMobile and 12 or 16
+    CloseBtn.TextSize = 18
     CloseBtn.Parent = Header
     
     local CloseCorner = Instance.new("UICorner")
@@ -434,39 +521,33 @@ local function CreateLoginPanel()
     CloseCorner.Parent = CloseBtn
     
     local Content = Instance.new("Frame")
-    if isMobile then
-        Content.Size = UDim2.new(1, -30, 1, -60)
-        Content.Position = UDim2.new(0, 15, 0, 55)
-    else
-        Content.Size = UDim2.new(1, -40, 1, -90)
-        Content.Position = UDim2.new(0, 20, 0, 80)
-    end
+    Content.Size = UDim2.new(1, -40, 1, -90)
+    Content.Position = UDim2.new(0, 20, 0, 80)
     Content.BackgroundTransparency = 1
     Content.Parent = MainFrame
     
     local Layout = Instance.new("UIListLayout")
     Layout.Parent = Content
-    Layout.Padding = UDim.new(0, isMobile and 6 or 10)
+    Layout.Padding = UDim.new(0, 10)
     Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     
-    -- Provider Section
     local ProviderSection = Instance.new("Frame")
-    ProviderSection.Size = UDim2.new(1, 0, 0, isMobile and 50 or 80)
+    ProviderSection.Size = UDim2.new(1, 0, 0, 80)
     ProviderSection.BackgroundTransparency = 1
     ProviderSection.Parent = Content
     
     local ProviderLabel = Instance.new("TextLabel")
-    ProviderLabel.Size = UDim2.new(1, 0, 0, isMobile and 15 or 25)
+    ProviderLabel.Size = UDim2.new(1, 0, 0, 25)
     ProviderLabel.BackgroundTransparency = 1
     ProviderLabel.Text = "SELECT KEY PROVIDER"
     ProviderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     ProviderLabel.Font = Enum.Font.SourceSansBold
-    ProviderLabel.TextSize = isMobile and 11 or 16
+    ProviderLabel.TextSize = 16
     ProviderLabel.Parent = ProviderSection
     
     local ProviderButtons = Instance.new("Frame")
-    ProviderButtons.Size = UDim2.new(1, 0, 0, isMobile and 30 or 50)
-    ProviderButtons.Position = UDim2.new(0, 0, 0, isMobile and 15 or 25)
+    ProviderButtons.Size = UDim2.new(1, 0, 0, 50)
+    ProviderButtons.Position = UDim2.new(0, 0, 0, 25)
     ProviderButtons.BackgroundTransparency = 1
     ProviderButtons.Parent = ProviderSection
     
@@ -477,7 +558,7 @@ local function CreateLoginPanel()
     WorkInkBtn.Text = "WORK.INK"
     WorkInkBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     WorkInkBtn.Font = Enum.Font.SourceSansBold
-    WorkInkBtn.TextSize = isMobile and 10 or 14
+    WorkInkBtn.TextSize = 14
     WorkInkBtn.Parent = ProviderButtons
     
     local WorkInkCorner = Instance.new("UICorner")
@@ -491,38 +572,37 @@ local function CreateLoginPanel()
     LinkvertiseBtn.Text = "LINKVERTISE"
     LinkvertiseBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     LinkvertiseBtn.Font = Enum.Font.SourceSansBold
-    LinkvertiseBtn.TextSize = isMobile and 10 or 14
+    LinkvertiseBtn.TextSize = 14
     LinkvertiseBtn.Parent = ProviderButtons
     
     local LinkvertiseCorner = Instance.new("UICorner")
     LinkvertiseCorner.CornerRadius = UDim.new(0, 6)
     LinkvertiseCorner.Parent = LinkvertiseBtn
     
-    -- Key Section
     local KeySection = Instance.new("Frame")
-    KeySection.Size = UDim2.new(1, 0, 0, isMobile and 50 or 80)
+    KeySection.Size = UDim2.new(1, 0, 0, 80)
     KeySection.BackgroundTransparency = 1
     KeySection.Parent = Content
     
     local KeyLabel = Instance.new("TextLabel")
-    KeyLabel.Size = UDim2.new(1, 0, 0, isMobile and 15 or 25)
+    KeyLabel.Size = UDim2.new(1, 0, 0, 25)
     KeyLabel.BackgroundTransparency = 1
     KeyLabel.Text = "ENTER YOUR KEY:"
     KeyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     KeyLabel.Font = Enum.Font.SourceSansBold
-    KeyLabel.TextSize = isMobile and 11 or 16
+    KeyLabel.TextSize = 16
     KeyLabel.Parent = KeySection
     
     local KeyBox = Instance.new("TextBox")
-    KeyBox.Size = UDim2.new(1, 0, 0, isMobile and 30 or 45)
-    KeyBox.Position = UDim2.new(0, 0, 0, isMobile and 15 or 25)
+    KeyBox.Size = UDim2.new(1, 0, 0, 45)
+    KeyBox.Position = UDim2.new(0, 0, 0, 25)
     KeyBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     KeyBox.PlaceholderText = "Paste your key here..."
     KeyBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
     KeyBox.Text = ""
     KeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     KeyBox.Font = Enum.Font.SourceSans
-    KeyBox.TextSize = isMobile and 12 or 16
+    KeyBox.TextSize = 16
     KeyBox.Parent = KeySection
     
     local KeyBoxCorner = Instance.new("UICorner")
@@ -534,23 +614,21 @@ local function CreateLoginPanel()
     KeyBoxStroke.Color = Color3.fromRGB(60, 60, 60)
     KeyBoxStroke.Parent = KeyBox
     
-    -- Auth Button
     local AuthBtn = Instance.new("TextButton")
-    AuthBtn.Size = UDim2.new(1, 0, 0, isMobile and 35 or 50)
+    AuthBtn.Size = UDim2.new(1, 0, 0, 50)
     AuthBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     AuthBtn.Text = "AUTHENTICATE"
     AuthBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     AuthBtn.Font = Enum.Font.SourceSansBold
-    AuthBtn.TextSize = isMobile and 12 or 18
+    AuthBtn.TextSize = 18
     AuthBtn.Parent = Content
     
     local AuthCorner = Instance.new("UICorner")
     AuthCorner.CornerRadius = UDim.new(0, 6)
     AuthCorner.Parent = AuthBtn
     
-    -- Links Section
     local LinksSection = Instance.new("Frame")
-    LinksSection.Size = UDim2.new(1, 0, 0, isMobile and 35 or 50)
+    LinksSection.Size = UDim2.new(1, 0, 0, 50)
     LinksSection.BackgroundTransparency = 1
     LinksSection.Parent = Content
     
@@ -561,7 +639,7 @@ local function CreateLoginPanel()
     SiteBtn.Text = "SITE"
     SiteBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     SiteBtn.Font = Enum.Font.SourceSansBold
-    SiteBtn.TextSize = isMobile and 10 or 14
+    SiteBtn.TextSize = 14
     SiteBtn.Parent = LinksSection
     
     local SiteCorner = Instance.new("UICorner")
@@ -575,34 +653,38 @@ local function CreateLoginPanel()
     DiscordBtn.Text = "DISCORD"
     DiscordBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     DiscordBtn.Font = Enum.Font.SourceSansBold
-    DiscordBtn.TextSize = isMobile and 10 or 14
+    DiscordBtn.TextSize = 14
     DiscordBtn.Parent = LinksSection
     
     local DiscordCorner = Instance.new("UICorner")
     DiscordCorner.CornerRadius = UDim.new(0, 6)
     DiscordCorner.Parent = DiscordBtn
     
-    -- Status Label
     local StatusLabel = Instance.new("TextLabel")
-    StatusLabel.Size = UDim2.new(1, 0, 0, isMobile and 15 or 25)
+    StatusLabel.Size = UDim2.new(1, 0, 0, 25)
     StatusLabel.BackgroundTransparency = 1
     StatusLabel.Text = "STATUS: NOT READY"
     StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
     StatusLabel.Font = Enum.Font.SourceSansBold
-    StatusLabel.TextSize = isMobile and 10 or 14
+    StatusLabel.TextSize = 14
     StatusLabel.Parent = Content
     
-    -- Device Label
-    local DeviceLabel = Instance.new("TextLabel")
-    DeviceLabel.Size = UDim2.new(1, 0, 0, isMobile and 12 or 20)
-    DeviceLabel.BackgroundTransparency = 1
-    DeviceLabel.Text = isMobile and "📱 MOBILE DETECTED" or "💻 PC DETECTED"
-    DeviceLabel.TextColor3 = Color3.fromRGB(150, 150, 255)
-    DeviceLabel.Font = Enum.Font.SourceSans
-    DeviceLabel.TextSize = isMobile and 8 or 12
-    DeviceLabel.Parent = Content
+    local function SetupButton(btn, defaultColor, hoverColor)
+        btn.MouseEnter:Connect(function()
+            btn.BackgroundColor3 = hoverColor
+        end)
+        btn.MouseLeave:Connect(function()
+            btn.BackgroundColor3 = defaultColor
+        end)
+    end
     
-    -- Funções de interação
+    SetupButton(WorkInkBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
+    SetupButton(LinkvertiseBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
+    SetupButton(AuthBtn, Color3.fromRGB(255, 0, 0), Color3.fromRGB(220, 0, 0))
+    SetupButton(SiteBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
+    SetupButton(DiscordBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
+    SetupButton(CloseBtn, Color3.fromRGB(40, 40, 40), Color3.fromRGB(255, 0, 0))
+    
     local function CopyLink(text, btn, message)
         if pcall(function() setclipboard(text) end) then
             StatusLabel.Text = "STATUS: " .. message
@@ -639,7 +721,6 @@ local function CreateLoginPanel()
         LoginScreenGui:Destroy()
     end)
     
-    -- Função de login
     local function LoginSuccess()
         AuthBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
         AuthBtn.Text = "ACCESS GRANTED"
@@ -685,59 +766,77 @@ local function CreateLoginPanel()
         end
     end)
     
-    -- Efeitos visuais
-    if not isMobile then
-        local function SetupButton(btn, defaultColor, hoverColor)
-            btn.MouseEnter:Connect(function()
-                btn.BackgroundColor3 = hoverColor
-            end)
-            btn.MouseLeave:Connect(function()
-                btn.BackgroundColor3 = defaultColor
-            end)
-        end
-        
-        SetupButton(WorkInkBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
-        SetupButton(LinkvertiseBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
-        SetupButton(AuthBtn, Color3.fromRGB(255, 0, 0), Color3.fromRGB(220, 0, 0))
-        SetupButton(SiteBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
-        SetupButton(DiscordBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
-        SetupButton(CloseBtn, Color3.fromRGB(40, 40, 40), Color3.fromRGB(255, 0, 0))
+    KeyBox.Focused:Connect(function()
+        KeyBoxStroke.Color = Color3.fromRGB(100, 100, 100)
+    end)
+    
+    KeyBox.FocusLost:Connect(function()
+        KeyBoxStroke.Color = Color3.fromRGB(60, 60, 60)
+    end)
+    
+    if UserInputService then
+        local escapeConnection
+        escapeConnection = UserInputService.InputBegan:Connect(function(input)
+            if input.KeyCode == Enum.KeyCode.Escape then
+                escapeConnection:Disconnect()
+                LoginScreenGui:Destroy()
+            end
+        end)
     end
 end
 
--- FUNÇÃO PRINCIPAL DO PAINEL COM INTERFACE RESPONSIVA CORRIGIDA
 function StartV3NENOHUB()
     local StartTime = os.time()
     local ToggleKey = Enum.KeyCode.LeftControl
 
-    local isMobile = IsMobileDevice()
-    local screenSize = Camera.ViewportSize
+    local isMobile = UserInputService and UserInputService.TouchEnabled
+    local isDesktop = not isMobile
+    
+    if isMobile then
+        print("📱 V3NENO HUB: Dispositivo Mobile detectado")
+    else
+        print("💻 V3NENO HUB: Dispositivo Desktop detectado")
+    end
+
+    local aimbotConnection = SetupAimbotLoop(ScreenGui, Notify)
 
     local ESP_Body_Enabled = false
     local ESP_Names_Enabled = false
     local ESP_Distance_Enabled = false
     local ESP_Life_Enabled = false
     
+    local AntiLasso_Enabled = false
+    local AntiBreakFree_Enabled = false
+    local AntiLasso_Connection = nil
+    local AntiBreakFree_Connection = nil
+    
     local AnimalESP_Enabled = false
     local AnimalESP_Names_Enabled = false
     local AnimalESP_Distance_Enabled = false
 
     local ESPStorage = { Players = {} }
-    local ActiveConnections = {}
+    local ActiveConnections = {aimbotConnection}
     
     local OverpowerGunsEnabled = false
     local OriginalGunStats = nil
+    local FastFireEnabled = false
+    local FastEquipReloadEnabled = false
+    local NoRecoilEnabled = false
+
+    local AntiFallDamageEnabled = false
 
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "V3NENO_HUB_MAIN"
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.Parent = game.CoreGui or LocalPlayer.PlayerGui
 
-    -- Inicializar aimbot
-    local aimbotConnection = SetupAimbotLoop()
-    table.insert(ActiveConnections, aimbotConnection)
+    local function AddCorner(parent, radius)
+        local Corner = Instance.new("UICorner")
+        Corner.CornerRadius = radius or UDim.new(0, 8)
+        Corner.Parent = parent
+        return Corner
+    end
 
-    -- Sistema de notificações
     local NotificationQueue = {}
     local ShowingNotification = false
 
@@ -757,10 +856,7 @@ function StartV3NENOHUB()
                 NotifyFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
                 NotifyFrame.Parent = ScreenGui
                 NotifyFrame.ZIndex = 100
-                
-                local Corner = Instance.new("UICorner")
-                Corner.CornerRadius = UDim.new(0, 8)
-                Corner.Parent = NotifyFrame
+                AddCorner(NotifyFrame)
                 
                 local Stroke = Instance.new("UIStroke")
                 Stroke.Color = Color3.fromRGB(255, 0, 0)
@@ -773,7 +869,7 @@ function StartV3NENOHUB()
                 Lab.Text = text
                 Lab.TextColor3 = Color3.fromRGB(255, 255, 255)
                 Lab.Font = Enum.Font.SourceSansBold
-                Lab.TextSize = isMobile and 12 or 14
+                Lab.TextSize = 14
                 Lab.Parent = NotifyFrame
                 
                 NotifyFrame.Position = UDim2.new(0.5, -125, 0.85, 0)
@@ -785,14 +881,6 @@ function StartV3NENOHUB()
             end
             ShowNext()
         end
-    end
-
-    -- Funções auxiliares
-    local function AddCorner(parent, radius)
-        local Corner = Instance.new("UICorner")
-        Corner.CornerRadius = radius or UDim.new(0, 8)
-        Corner.Parent = parent
-        return Corner
     end
 
     local function GetPlayerColor(player)
@@ -815,23 +903,829 @@ function StartV3NENOHUB()
         end
     end
 
-    -- CRIAR PAINEL PRINCIPAL COM DIMENSÕES RESPONSIVAS CORRETAS
-    local MainFrame = Instance.new("Frame")
+    local function CreateUniversalESP(plr)
+        if ESPStorage.Players[plr] then return end
+        
+        local Highlight = Instance.new("Highlight")
+        Highlight.Name = "V3NENO_ESP_HIGHLIGHT"
+        Highlight.FillTransparency = 0.7
+        Highlight.OutlineTransparency = 0
+        Highlight.Enabled = false
+        
+        local TextDisplay = nil
+        local LifeDisplay = nil
+        
+        if isMobile then
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "V3NENO_ESP_BILLBOARD"
+            billboard.AlwaysOnTop = true
+            billboard.Size = UDim2.new(0, 200, 0, 50)
+            billboard.StudsOffset = Vector3.new(0, 3, 0)
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Name = "NameLabel"
+            nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+            nameLabel.Position = UDim2.new(0, 0, 0, 0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Text = ""
+            nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            nameLabel.Font = Enum.Font.SourceSansBold
+            nameLabel.TextSize = 14
+            nameLabel.TextStrokeTransparency = 0
+            nameLabel.Parent = billboard
+            
+            local distLabel = Instance.new("TextLabel")
+            distLabel.Name = "DistLabel"
+            distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+            distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+            distLabel.BackgroundTransparency = 1
+            distLabel.Text = ""
+            distLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            distLabel.Font = Enum.Font.SourceSans
+            distLabel.TextSize = 12
+            distLabel.TextStrokeTransparency = 0.5
+            distLabel.Parent = billboard
+            
+            TextDisplay = billboard
+            
+            local lifeBillboard = Instance.new("BillboardGui")
+            lifeBillboard.Name = "V3NENO_LIFE_BILLBOARD"
+            lifeBillboard.AlwaysOnTop = true
+            lifeBillboard.Size = UDim2.new(0, 120, 0, 25)
+            lifeBillboard.StudsOffset = Vector3.new(0, 2, 0)
+            
+            local lifeLabel = Instance.new("TextLabel")
+            lifeLabel.Name = "LifeLabel"
+            lifeLabel.Size = UDim2.new(1, 0, 1, 0)
+            lifeLabel.BackgroundTransparency = 1
+            lifeLabel.Text = ""
+            lifeLabel.Font = Enum.Font.SourceSansBold
+            lifeLabel.TextSize = 14
+            lifeLabel.TextStrokeTransparency = 0
+            lifeLabel.Parent = lifeBillboard
+            
+            LifeDisplay = lifeBillboard
+        else
+            local success1, nameTag = pcall(function()
+                local draw = Drawing.new("Text")
+                draw.Visible = false
+                draw.Size = 14
+                draw.Center = true
+                draw.Outline = true
+                return draw
+            end)
+            
+            if success1 then
+                TextDisplay = nameTag
+            end
+            
+            local success2, lifeTag = pcall(function()
+                local draw = Drawing.new("Text")
+                draw.Visible = false
+                draw.Size = 16
+                draw.Center = true
+                draw.Outline = true
+                return draw
+            end)
+            
+            if success2 then
+                LifeDisplay = lifeTag
+            end
+        end
+        
+        local connection
+        connection = RunService.Heartbeat:Connect(function()
+            if not ESPStorage.Players[plr] then
+                connection:Disconnect()
+                return
+            end
+            
+            local char = plr.Character
+            if char and char.Parent then
+                local root = char:FindFirstChild("HumanoidRootPart")
+                local humanoid = char:FindFirstChild("Humanoid")
+                
+                if root and humanoid and humanoid.Health > 0 then
+                    local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                    
+                    if ESP_Body_Enabled then
+                        Highlight.Parent = char
+                        Highlight.Enabled = true
+                        local playerColor = GetPlayerColor(plr)
+                        Highlight.FillColor = playerColor
+                        Highlight.OutlineColor = playerColor
+                    else
+                        Highlight.Enabled = false
+                    end
+                    
+                    if onScreen then
+                        local playerColor = GetPlayerColor(plr)
+                        
+                        if isMobile then
+                            if TextDisplay then
+                                local billboard = TextDisplay
+                                local nameLabel = billboard:FindFirstChild("NameLabel")
+                                local distLabel = billboard:FindFirstChild("DistLabel")
+                                
+                                if nameLabel then
+                                    nameLabel.Visible = ESP_Names_Enabled
+                                    if ESP_Names_Enabled then
+                                        nameLabel.Text = plr.Name
+                                        nameLabel.TextColor3 = playerColor
+                                    end
+                                end
+                                
+                                if distLabel and LocalPlayer.Character then
+                                    local localRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                    distLabel.Visible = ESP_Distance_Enabled
+                                    if ESP_Distance_Enabled and localRoot then
+                                        local distance = math.floor((root.Position - localRoot.Position).Magnitude)
+                                        distLabel.Text = "[" .. distance .. "m]"
+                                    end
+                                end
+                                
+                                if (ESP_Names_Enabled or ESP_Distance_Enabled) then
+                                    billboard.Adornee = root
+                                    billboard.Parent = char
+                                    billboard.Enabled = true
+                                else
+                                    billboard.Enabled = false
+                                end
+                            end
+                            
+                            if LifeDisplay then
+                                local lifeBillboard = LifeDisplay
+                                local lifeLabel = lifeBillboard:FindFirstChild("LifeLabel")
+                                
+                                if lifeLabel and ESP_Life_Enabled then
+                                    local health = math.floor(humanoid.Health)
+                                    local maxHealth = math.floor(humanoid.MaxHealth)
+                                    local healthText = "HP: " .. health .. "/" .. maxHealth
+                                    lifeLabel.Text = healthText
+                                    
+                                    local healthPercent = health / maxHealth
+                                    if healthPercent > 0.75 then
+                                        lifeLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
+                                    elseif healthPercent > 0.5 then
+                                        lifeLabel.TextColor3 = Color3.fromRGB(255, 255, 50)
+                                    elseif healthPercent > 0.25 then
+                                        lifeLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+                                    else
+                                        lifeLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+                                    end
+                                    
+                                    lifeBillboard.Adornee = root
+                                    lifeBillboard.Parent = char
+                                    lifeBillboard.Enabled = true
+                                elseif LifeDisplay then
+                                    LifeDisplay.Enabled = false
+                                end
+                            end
+                        else
+                            if TextDisplay and (ESP_Names_Enabled or ESP_Distance_Enabled) then
+                                local info = ""
+                                if ESP_Names_Enabled then 
+                                    info = plr.Name 
+                                end
+                                
+                                if ESP_Distance_Enabled and LocalPlayer.Character then
+                                    local localRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                    if localRoot then
+                                        local distance = math.floor((root.Position - localRoot.Position).Magnitude)
+                                        info = info .. (info ~= "" and " [" or "[") .. distance .. "m]"
+                                    end
+                                end
+                                
+                                TextDisplay.Text = info
+                                TextDisplay.Color = playerColor
+                                TextDisplay.Position = Vector2.new(pos.X, pos.Y - 40)
+                                TextDisplay.Visible = info ~= ""
+                            elseif TextDisplay then
+                                TextDisplay.Visible = false
+                            end
+                            
+                            if LifeDisplay and ESP_Life_Enabled then
+                                local health = math.floor(humanoid.Health)
+                                local maxHealth = math.floor(humanoid.MaxHealth)
+                                local healthText = "HP: " .. health .. "/" .. maxHealth
+                                
+                                LifeDisplay.Text = healthText
+                                
+                                local healthPercent = health / maxHealth
+                                if healthPercent > 0.75 then
+                                    LifeDisplay.Color = Color3.fromRGB(50, 255, 50)
+                                elseif healthPercent > 0.5 then
+                                    LifeDisplay.Color = Color3.fromRGB(255, 255, 50)
+                                elseif healthPercent > 0.25 then
+                                    LifeDisplay.Color = Color3.fromRGB(255, 165, 0)
+                                else
+                                    LifeDisplay.Color = Color3.fromRGB(255, 50, 50)
+                                end
+                                
+                                LifeDisplay.Position = Vector2.new(pos.X, pos.Y - 20)
+                                LifeDisplay.Visible = true
+                            elseif LifeDisplay then
+                                LifeDisplay.Visible = false
+                            end
+                        end
+                    else
+                        if isMobile then
+                            if TextDisplay then TextDisplay.Enabled = false end
+                            if LifeDisplay then LifeDisplay.Enabled = false end
+                        else
+                            if TextDisplay then TextDisplay.Visible = false end
+                            if LifeDisplay then LifeDisplay.Visible = false end
+                        end
+                    end
+                else
+                    Highlight.Enabled = false
+                    if isMobile then
+                        if TextDisplay then TextDisplay.Enabled = false end
+                        if LifeDisplay then LifeDisplay.Enabled = false end
+                    else
+                        if TextDisplay then TextDisplay.Visible = false end
+                        if LifeDisplay then LifeDisplay.Visible = false end
+                    end
+                end
+            else
+                Highlight.Enabled = false
+                if isMobile then
+                    if TextDisplay then TextDisplay.Enabled = false end
+                    if LifeDisplay then LifeDisplay.Enabled = false end
+                else
+                    if TextDisplay then TextDisplay.Visible = false end
+                    if LifeDisplay then LifeDisplay.Visible = false end
+                end
+            end
+        end)
+        
+        ESPStorage.Players[plr] = {
+            Highlight = Highlight,
+            TextDisplay = TextDisplay,
+            LifeDisplay = LifeDisplay,
+            Connection = connection,
+            IsMobile = isMobile
+        }
+        
+        plr.AncestryChanged:Connect(function()
+            if not plr.Parent then
+                local data = ESPStorage.Players[plr]
+                if data then
+                    data.Connection:Disconnect()
+                    data.Highlight:Destroy()
+                    if data.IsMobile then
+                        if data.TextDisplay then
+                            data.TextDisplay:Destroy()
+                        end
+                        if data.LifeDisplay then
+                            data.LifeDisplay:Destroy()
+                        end
+                    else
+                        if data.TextDisplay then 
+                            pcall(function() data.TextDisplay:Remove() end)
+                        end
+                        if data.LifeDisplay then
+                            pcall(function() data.LifeDisplay:Remove() end)
+                        end
+                    end
+                    ESPStorage.Players[plr] = nil
+                end
+            end
+        end)
+    end
+
+    local function InitializeUniversalESP()
+        for _, player in pairs(Players:GetPlayers()) do 
+            if player ~= LocalPlayer then 
+                CreateUniversalESP(player) 
+            end 
+        end
+
+        Players.PlayerAdded:Connect(function(player)
+            task.wait(1)
+            if player ~= LocalPlayer then
+                CreateUniversalESP(player)
+            end
+        end)
+    end
+
+    local function GetRarityColor(model)
+        local n = model.Name:lower()
+        if n:find("direwolf") or n:find("legendary") then 
+            return Color3.fromRGB(255, 215, 0)
+        end
+        if n:find("rare") then 
+            return Color3.fromRGB(255, 0, 0)
+        end
+        if n:find("uncommon") then 
+            return Color3.fromRGB(0, 255, 255)
+        end
+        return Color3.fromRGB(200, 200, 200)
+    end
+
+    local function GetCleanName(model)
+        local n = model.Name:gsub("%[Wild%]", ""):gsub("%[wild%]", ""):split("{")[1]:match("^%s*(.-)%s*$")
+        return (n == "DireWolf") and "Legendary Dire Wolf" or n
+    end
+
+    _G.AnimalBody_Active = false
+    _G.AnimalNames_Active = false
+    _G.AnimalDist_Active = false
+
+    local AnimalBodyConnection = nil
+    local AnimalNamesConnection = nil
+    local AnimalDistConnection = nil
+
+    local function CleanupAnimalESP()
+        if AnimalBodyConnection then
+            AnimalBodyConnection:Disconnect()
+            AnimalBodyConnection = nil
+        end
+        
+        if AnimalNamesConnection then
+            AnimalNamesConnection:Disconnect()
+            AnimalNamesConnection = nil
+        end
+        
+        if AnimalDistConnection then
+            AnimalDistConnection:Disconnect()
+            AnimalDistConnection = nil
+        end
+        
+        local folder = Workspace:FindFirstChild("Animals")
+        if folder then
+            for _, animal in pairs(folder:GetChildren()) do
+                if animal:IsA("Model") then
+                    if animal:FindFirstChild("TRXSH_B") then
+                        animal.TRXSH_B:Destroy()
+                    end
+                    if animal:FindFirstChild("TRXSH_ESP") then
+                        animal.TRXSH_ESP:Destroy()
+                    end
+                end
+            end
+        end
+    end
+
+    local function ToggleAnimalBody(enabled)
+        _G.AnimalBody_Active = enabled
+        AnimalESP_Enabled = enabled
+        
+        if AnimalBodyConnection then
+            AnimalBodyConnection:Disconnect()
+            AnimalBodyConnection = nil
+        end
+        
+        if enabled then
+            AnimalBodyConnection = RunService.Heartbeat:Connect(function()
+                local folder = Workspace:FindFirstChild("Animals")
+                if not folder then return end
+                
+                for _, animal in pairs(folder:GetChildren()) do
+                    if _G.AnimalBody_Active and animal:IsA("Model") then
+                        if not animal:FindFirstChild("TRXSH_B") then
+                            local h = Instance.new("Highlight")
+                            h.Name = "TRXSH_B"
+                            h.FillColor = GetRarityColor(animal)
+                            h.FillTransparency = 0.4
+                            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            h.OutlineColor = Color3.fromRGB(255, 255, 255)
+                            h.OutlineTransparency = 0
+                            h.Parent = animal
+                        end
+                    else
+                        if animal:FindFirstChild("TRXSH_B") then 
+                            animal.TRXSH_B:Destroy() 
+                        end
+                    end
+                end
+            end)
+            Notify("ANIMAL ESP BODY ENABLED")
+        else
+            local folder = Workspace:FindFirstChild("Animals")
+            if folder then
+                for _, animal in pairs(folder:GetChildren()) do
+                    if animal:FindFirstChild("TRXSH_B") then 
+                        animal.TRXSH_B:Destroy() 
+                    end
+                end
+            end
+            Notify("ANIMAL ESP BODY DISABLED")
+        end
+    end
+
+    local function ToggleAnimalNames(enabled)
+        _G.AnimalNames_Active = enabled
+        AnimalESP_Names_Enabled = enabled
+        
+        if AnimalNamesConnection then
+            AnimalNamesConnection:Disconnect()
+            AnimalNamesConnection = nil
+        end
+        
+        if enabled then
+            AnimalNamesConnection = RunService.Heartbeat:Connect(function()
+                local folder = Workspace:FindFirstChild("Animals")
+                if not folder then return end
+                
+                for _, animal in pairs(folder:GetChildren()) do
+                    if _G.AnimalNames_Active and animal:IsA("Model") then
+                        local root = animal.PrimaryPart or animal:FindFirstChildWhichIsA("BasePart")
+                        if root then
+                            local b = animal:FindFirstChild("TRXSH_ESP")
+                            if not b then
+                                b = Instance.new("BillboardGui")
+                                b.Name = "TRXSH_ESP"
+                                b.AlwaysOnTop = true
+                                b.Size = UDim2.new(0, 200, 0, 50)
+                                b.StudsOffset = Vector3.new(0, 3, 0)
+                                b.Adornee = root
+                                b.Parent = animal
+                            end
+                            
+                            local l = b:FindFirstChild("NameLabel")
+                            if not l then
+                                l = Instance.new("TextLabel")
+                                l.Name = "NameLabel"
+                                l.BackgroundTransparency = 1
+                                l.Size = UDim2.new(1, 0, 0.5, 0)
+                                l.Position = UDim2.new(0, 0, 0, 0)
+                                l.TextColor3 = GetRarityColor(animal)
+                                l.Font = Enum.Font.SourceSansBold
+                                l.TextSize = 18
+                                l.TextStrokeTransparency = 0
+                                l.Parent = b
+                            end
+                            l.Text = GetCleanName(animal)
+                        end
+                    else
+                        local b = animal:FindFirstChild("TRXSH_ESP")
+                        if b and b:FindFirstChild("NameLabel") then 
+                            b.NameLabel:Destroy() 
+                        end
+                        if b and not b:FindFirstChildWhichIsA("TextLabel") then 
+                            b:Destroy() 
+                        end
+                    end
+                end
+            end)
+            Notify("ANIMAL NAMES ENABLED")
+        else
+            local folder = Workspace:FindFirstChild("Animals")
+            if folder then
+                for _, animal in pairs(folder:GetChildren()) do
+                    local b = animal:FindFirstChild("TRXSH_ESP")
+                    if b and b:FindFirstChild("NameLabel") then 
+                        b.NameLabel:Destroy() 
+                    end
+                    if b and not b:FindFirstChildWhichIsA("TextLabel") then 
+                        b:Destroy() 
+                    end
+                end
+            end
+            Notify("ANIMAL NAMES DISABLED")
+        end
+    end
+
+    local function ToggleAnimalDistance(enabled)
+        _G.AnimalDist_Active = enabled
+        AnimalESP_Distance_Enabled = enabled
+        
+        if AnimalDistConnection then
+            AnimalDistConnection:Disconnect()
+            AnimalDistConnection = nil
+        end
+        
+        if enabled then
+            AnimalDistConnection = RunService.Heartbeat:Connect(function()
+                local folder = Workspace:FindFirstChild("Animals")
+                if not folder then return end
+                
+                for _, animal in pairs(folder:GetChildren()) do
+                    if _G.AnimalDist_Active and animal:IsA("Model") then
+                        local root = animal.PrimaryPart or animal:FindFirstChildWhichIsA("BasePart")
+                        if root then
+                            local b = animal:FindFirstChild("TRXSH_ESP")
+                            if not b then
+                                b = Instance.new("BillboardGui")
+                                b.Name = "TRXSH_ESP"
+                                b.AlwaysOnTop = true
+                                b.Size = UDim2.new(0, 200, 0, 50)
+                                b.StudsOffset = Vector3.new(0, 3, 0)
+                                b.Adornee = root
+                                b.Parent = animal
+                            end
+                            
+                            local d = b:FindFirstChild("DistLabel")
+                            if not d then
+                                d = Instance.new("TextLabel")
+                                d.Name = "DistLabel"
+                                d.BackgroundTransparency = 1
+                                d.Size = UDim2.new(1, 0, 0.5, 0)
+                                d.Position = UDim2.new(0, 0, 0.5, 0)
+                                d.TextColor3 = Color3.fromRGB(255, 255, 255)
+                                d.Font = Enum.Font.SourceSansBold
+                                d.TextSize = 14
+                                d.TextStrokeTransparency = 0.5
+                                d.Parent = b
+                            end
+                            
+                            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                                local dist = math.floor((LocalPlayer.Character.HumanoidRootPart.Position - root.Position).Magnitude)
+                                d.Text = "[" .. dist .. "m]"
+                            end
+                        end
+                    else
+                        local b = animal:FindFirstChild("TRXSH_ESP")
+                        if b and b:FindFirstChild("DistLabel") then 
+                            b.DistLabel:Destroy() 
+                        end
+                        if b and not b:FindFirstChildWhichIsA("TextLabel") then 
+                            b:Destroy() 
+                        end
+                    end
+                end
+            end)
+            Notify("ANIMAL DISTANCE ENABLED")
+        else
+            local folder = Workspace:FindFirstChild("Animals")
+            if folder then
+                for _, animal in pairs(folder:GetChildren()) do
+                    local b = animal:FindFirstChild("TRXSH_ESP")
+                    if b and b:FindFirstChild("DistLabel") then 
+                        b.DistLabel:Destroy() 
+                    end
+                    if b and not b:FindFirstChildWhichIsA("TextLabel") then 
+                        b:Destroy() 
+                    end
+                end
+            end
+            Notify("ANIMAL DISTANCE DISABLED")
+        end
+    end
+
+    local function ApplyOverpowerGuns()
+        if not ReplicatedStorage:FindFirstChild("GunScripts") then
+            Notify("ERROR: GunScripts not found!")
+            return false
+        end
+        
+        local gunStats = ReplicatedStorage.GunScripts:FindFirstChild("GunStats")
+        if not gunStats then
+            Notify("ERROR: GunStats not found!")
+            return false
+        end
+        
+        local success, v1 = pcall(function()
+            return require(gunStats)
+        end)
+        
+        if not success or type(v1) ~= "table" then
+            Notify("ERROR: Failed to load gun stats!")
+            return false
+        end
+        
+        if not OriginalGunStats then
+            OriginalGunStats = {}
+            for name, stats in pairs(v1) do
+                if type(stats) == "table" then
+                    OriginalGunStats[name] = {}
+                    for k, v in pairs(stats) do
+                        OriginalGunStats[name][k] = v
+                    end
+                end
+            end
+        end
+        
+        local FastFireStats = {
+            ["Colt .45"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Henry Rifle"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 8000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Sawed-Off Shotgun"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["BulletCount"] = 15, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Double Barrel Shotgun"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["BulletCount"] = 15, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Schofield Revolver"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Sharps Rifle"] = {["Damage"] = 100, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 10000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Gold Buffalo Rifle"] = {["Damage"] = 100, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 10000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Volcanic Pistol"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Winchester Rifle"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 8000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["LeMat Revolver"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Mauser Pistol"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 6000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Bow"] = {["Damage"] = 100, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 3000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Pump-action Shotgun"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["BulletCount"] = 15, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Colt Navy"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Mosin-Nagant"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 10000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Gold Mosin"] = {["Damage"] = 100, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 10000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Bergmann No. 3"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 6000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Colt 1911"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 6000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Double-Action Revolver"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Mondragon"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 9000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Gold Mondragon"] = {["Damage"] = 100, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 9000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Joalland Pistol"] = {["Damage"] = 120, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 6000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Winchester Model 94"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 8000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Colt Lightning"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 8000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Remington"] = {["Damage"] = 95, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Gold Remington"] = {["Damage"] = 100, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 5000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0},
+            ["Martini-Henry"] = {["Damage"] = 100, ["prepTime"] = 0.01, ["ReloadSpeed"] = 0.01, ["BulletSpeed"] = 10000, ["HipFireAccuracy"] = 0, ["ZoomAccuracy"] = 0, ["AutoFire"] = true, ["camShakeResist"] = 10000, ["equipTime"] = 0.01, ["EquipDelay"] = 0, ["Spread"] = 0}
+        }
+
+        for name, stats in pairs(FastFireStats) do
+            if v1[name] then 
+                for k, v in pairs(stats) do 
+                    v1[name][k] = v 
+                end 
+            end
+        end
+
+        v1["Ornate Winchester"] = v1["Winchester Rifle"]
+        v1["Ornate Colt"] = v1["Colt .45"]
+        v1["Gold Schofield"] = v1["Schofield Revolver"]
+        v1["Engraved Double-Action"] = v1["Double-Action Revolver"]
+        v1["Volcanic Model 94"] = v1["Winchester Model 94"]
+        v1["Volcanic Remington"] = v1.Remington
+        v1["Winter's Bounty"] = v1["Gold Buffalo Rifle"]
+        v1["Dark Colt Navy"] = v1["Colt Navy"]
+        v1["Dark Mosin"] = v1["Mosin-Nagant"]
+        v1["Ice Winchester 94"] = v1["Winchester Model 94"]
+        v1.Flintlock = v1["Joalland Pistol"]
+        v1.Musket = v1["Martini-Henry"]
+        v1["Ice Mosin"] = v1["Mosin-Nagant"]
+        v1["Maple Bow"] = v1.Bow
+        
+        Notify("OVER POWER GUNS MOD ENABLED!")
+        Notify("ULTRA FAST + INSTANT EQUIP + NO RECOIL!")
+        return true
+    end
+
+    local function RestoreOriginalGuns()
+        if not OriginalGunStats or not ReplicatedStorage:FindFirstChild("GunScripts") then
+            Notify("Cannot restore original gun stats")
+            return false
+        end
+        
+        local gunStats = ReplicatedStorage.GunScripts:FindFirstChild("GunStats")
+        if not gunStats then return false end
+        
+        local success, v1 = pcall(function()
+            return require(gunStats)
+        end)
+        
+        if not success or type(v1) ~= "table" then
+            return false
+        end
+        
+        for name, originalStats in pairs(OriginalGunStats) do
+            if v1[name] then
+                for k, v in pairs(originalStats) do
+                    v1[name][k] = v
+                end
+            end
+        end
+        
+        Notify("OVER POWER GUNS MOD DISABLED")
+        return true
+    end
+
+    local function ToggleOverpowerGuns(enabled)
+        OverpowerGunsEnabled = enabled
+        if enabled then
+            local success = ApplyOverpowerGuns()
+            if not success then
+                OverpowerGunsEnabled = false
+            end
+        else
+            RestoreOriginalGuns()
+        end
+    end
+
+    local MainFrame = nil
+    local mobileFloatingButton = nil
+
+    local function CreateMobileMinimizeButton()
+        if mobileFloatingButton then
+            mobileFloatingButton:Destroy()
+            mobileFloatingButton = nil
+        end
+        
+        mobileFloatingButton = Instance.new("TextButton")
+        mobileFloatingButton.Name = "MobileMinimizeButton"
+        mobileFloatingButton.Size = UDim2.new(0, 50, 0, 50)
+        mobileFloatingButton.Position = UDim2.new(0.9, 0, 0.1, 0)
+        mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        mobileFloatingButton.Text = "V"
+        mobileFloatingButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        mobileFloatingButton.Font = Enum.Font.SourceSansBold
+        mobileFloatingButton.TextSize = 24
+        mobileFloatingButton.ZIndex = 1000
+        mobileFloatingButton.Parent = ScreenGui
+        AddCorner(mobileFloatingButton, UDim.new(1, 0))
+        
+        local dragging = false
+        local dragInput, dragStart, startPos
+        
+        mobileFloatingButton.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                dragStart = input.Position
+                startPos = mobileFloatingButton.Position
+                
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+        
+        mobileFloatingButton.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+                dragInput = input
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input == dragInput) then
+                local delta = input.Position - dragStart
+                mobileFloatingButton.Position = UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset + delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+        
+        mobileFloatingButton.MouseButton1Click:Connect(function()
+            if MainFrame and MainFrame.Visible then
+                MainFrame.Visible = false
+                mobileFloatingButton.Text = "V"
+                mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                Notify("PANEL MINIMIZED - CLICK 'V' TO RESTORE")
+            else
+                if MainFrame then
+                    MainFrame.Visible = true
+                end
+                mobileFloatingButton.Text = "V"
+                mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+                Notify("PANEL RESTORED")
+            end
+        end)
+        
+        mobileFloatingButton.MouseEnter:Connect(function()
+            if mobileFloatingButton then
+                if MainFrame and MainFrame.Visible then
+                    mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+                else
+                    mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+                end
+            end
+        end)
+        
+        mobileFloatingButton.MouseLeave:Connect(function()
+            if mobileFloatingButton then
+                if MainFrame and MainFrame.Visible then
+                    mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+                else
+                    mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                end
+            end
+        end)
+        
+        Notify("MOBILE MINIMIZE BUTTON CREATED - DRAGGABLE")
+    end
+
+    local function ToggleAntiFallDamage(enabled)
+        AntiFallDamageEnabled = enabled
+        
+        if enabled then
+            Notify("LOADING ANTI FALL DAMAGE...")
+            
+            local Player = game.Players.LocalPlayer
+            local Character = Player.Character or Player.CharacterAdded:Wait()
+
+            local oldNC
+            oldNC = hookmetamethod(game, "__namecall", function(self, ...)
+                local method = getnamecallmethod()
+                local args = {...}
+                
+                if method == "FireServer" and self.Name == "ChangeCharacter" and args[1] == "Damage" then
+                    args[2] = 0 
+                    return oldNC(self, unpack(args))
+                end
+                
+                return oldNC(self, ...)
+            end)
+
+            Notify("ANTI-FALL DAMAGE ACTIVATED SUCCESSFULLY!")
+        else
+            Notify("ANTI FALL DAMAGE DISABLED")
+        end
+    end
+
+    MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
     MainFrame.Parent = ScreenGui
     MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
-    
-    if isMobile then
-        -- Dimensões otimizadas para mobile
-        local width = math.min(350, screenSize.X * 0.9)
-        local height = math.min(400, screenSize.Y * 0.8)
-        MainFrame.Size = UDim2.new(0, width, 0, height)
-        MainFrame.Position = UDim2.new(0.5, -width/2, 0.5, -height/2)
-    else
-        MainFrame.Size = UDim2.new(0, 600, 0, 400)
-        MainFrame.Position = UDim2.new(0.3, 0, 0.25, 0)
-    end
-    
+    MainFrame.Position = UDim2.new(0.3, 0, 0.25, 0)
+    MainFrame.Size = UDim2.new(0, 600, 0, 400)
     MainFrame.Active = true
     MainFrame.Draggable = true
     AddCorner(MainFrame, UDim.new(0, 10))
@@ -841,99 +1735,55 @@ function StartV3NENOHUB()
     MStroke.Color = Color3.fromRGB(45, 45, 45)
     MStroke.Parent = MainFrame
 
-    -- Título
     local Title = Instance.new("TextLabel")
     Title.Parent = MainFrame
     Title.Text = "V3NENO HUB - WESTBOUND"
     Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+    Title.TextSize = 16
     Title.Font = Enum.Font.SourceSansBold
+    Title.Position = UDim2.new(0, 20, 0, 10)
+    Title.Size = UDim2.new(0, 350, 0, 30)
     Title.BackgroundTransparency = 1
-    
-    if isMobile then
-        Title.TextSize = 14
-        Title.Position = UDim2.new(0.05, 0, 0, 8)
-        Title.Size = UDim2.new(0.5, 0, 0, 20)
-    else
-        Title.TextSize = 16
-        Title.Position = UDim2.new(0.05, 0, 0, 10)
-        Title.Size = UDim2.new(0.6, 0, 0, 30)
-    end
     Title.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Timer
-    local TimerContainer = Instance.new("Frame")
-    TimerContainer.Parent = MainFrame
-    TimerContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    TimerContainer.BackgroundTransparency = 0.5
-    
-    if isMobile then
-        TimerContainer.Size = UDim2.new(0, 70, 0, 18)
-        TimerContainer.Position = UDim2.new(0.7, 0, 0.02, 0)
-    else
-        TimerContainer.Size = UDim2.new(0, 90, 0, 24)
-        TimerContainer.Position = UDim2.new(0.75, 0, 0.02, 0)
-    end
-    
-    AddCorner(TimerContainer, UDim.new(0, 4))
-
     local TimerLabel = Instance.new("TextLabel")
-    TimerLabel.Parent = TimerContainer
-    TimerLabel.Size = UDim2.new(1, 0, 1, 0)
+    TimerLabel.Parent = MainFrame
+    TimerLabel.Size = UDim2.new(0, 120, 0, 20)
+    TimerLabel.Position = UDim2.new(0.72, 0, 0.04, 0)
     TimerLabel.BackgroundTransparency = 1
-    TimerLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
+    TimerLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     TimerLabel.Font = Enum.Font.Code
-    TimerLabel.Text = "00:00:00"
-    
-    if isMobile then
-        TimerLabel.TextSize = 9
-    else
-        TimerLabel.TextSize = 11
-    end
+    TimerLabel.TextSize = 12
+    TimerLabel.TextXAlignment = Enum.TextXAlignment.Right
 
-    -- Atualizar timer
     local timerConnection = RunService.RenderStepped:Connect(function()
         local seconds = os.time() - StartTime
         local h = math.floor(seconds / 3600)
         local m = math.floor((seconds % 3600) / 60)
         local s = seconds % 60
-        TimerLabel.Text = string.format("%02d:%02d:%02d", h, m, s)
+        TimerLabel.Text = string.format("Online: %02d:%02d:%02d", h, m, s)
     end)
     table.insert(ActiveConnections, timerConnection)
 
-    -- SideBar (Menu lateral)
     local SideBar = Instance.new("Frame")
     SideBar.Parent = MainFrame
     SideBar.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    SideBar.Position = UDim2.new(0.02, 0, 0.15, 0)
+    SideBar.Size = UDim2.new(0, 140, 0, 255)
     AddCorner(SideBar)
-    
-    if isMobile then
-        SideBar.Size = UDim2.new(0.25, 0, 0, 240)
-        SideBar.Position = UDim2.new(0.02, 0, 0.15, 0)
-    else
-        SideBar.Size = UDim2.new(0, 140, 0, 255)
-        SideBar.Position = UDim2.new(0.02, 0, 0.15, 0)
-    end
 
     local SideLayout = Instance.new("UIListLayout")
     SideLayout.Parent = SideBar
-    SideLayout.Padding = UDim.new(0, isMobile and 1 or 2)
+    SideLayout.Padding = UDim.new(0, 2)
     SideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-    -- Content Holder
     local ContentHolder = Instance.new("Frame")
     ContentHolder.Parent = MainFrame
     ContentHolder.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    ContentHolder.Position = UDim2.new(0.28, 0, 0.15, 0)
+    ContentHolder.Size = UDim2.new(0, 410, 0, 325)
     AddCorner(ContentHolder)
-    
-    if isMobile then
-        ContentHolder.Size = UDim2.new(0.68, 0, 0, 240)
-        ContentHolder.Position = UDim2.new(0.28, 0, 0.15, 0)
-    else
-        ContentHolder.Size = UDim2.new(0, 410, 0, 325)
-        ContentHolder.Position = UDim2.new(0.28, 0, 0.15, 0)
-    end
 
-    -- Sistema de páginas
     local Pages = {}
     local function CreatePage(name)
         local Page = Instance.new("ScrollingFrame")
@@ -942,19 +1792,14 @@ function StartV3NENOHUB()
         Page.Size = UDim2.new(1, 0, 1, 0)
         Page.BackgroundTransparency = 1
         Page.Visible = false
+        Page.ScrollBarThickness = 3
         Page.CanvasSize = UDim2.new(0, 0, 0, 0)
         Page.ScrollingDirection = Enum.ScrollingDirection.Y
         Page.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
         
-        if isMobile then
-            Page.ScrollBarThickness = 2
-        else
-            Page.ScrollBarThickness = 3
-        end
-        
         local List = Instance.new("UIListLayout")
         List.Parent = Page
-        List.Padding = UDim.new(0, isMobile and 6 : 10)
+        List.Padding = UDim.new(0, 10)
         List.HorizontalAlignment = Enum.HorizontalAlignment.Center
         List.SortOrder = Enum.SortOrder.LayoutOrder
         
@@ -966,7 +1811,6 @@ function StartV3NENOHUB()
         return Page
     end
 
-    -- Criar páginas
     local PVP_Page = CreatePage("PVP")
     local VIS_Page = CreatePage("VISUALS")
     local MISC_Page = CreatePage("MISC")
@@ -976,19 +1820,13 @@ function StartV3NENOHUB()
     local CREDITS_Page = CreatePage("CREDITS")
     PVP_Page.Visible = true
 
-    -- Funções para criar elementos da UI
     local function CreateSection(page, text)
         local Frame = Instance.new("Frame")
+        Frame.Size = UDim2.new(0.95, 0, 0, 28)
         Frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Frame.Parent = page
         Frame.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         AddCorner(Frame, UDim.new(0, 4))
-        
-        if isMobile then
-            Frame.Size = UDim2.new(0.95, 0, 0, 22)
-        else
-            Frame.Size = UDim2.new(0.95, 0, 0, 28)
-        end
         
         local Lab = Instance.new("TextLabel")
         Lab.Size = UDim2.new(1, 0, 1, 0)
@@ -996,13 +1834,7 @@ function StartV3NENOHUB()
         Lab.Text = text:upper()
         Lab.TextColor3 = Color3.fromRGB(255, 255, 255)
         Lab.Font = Enum.Font.SourceSansBold
-        
-        if isMobile then
-            Lab.TextSize = 10
-        else
-            Lab.TextSize = 13
-        end
-        
+        Lab.TextSize = 13
         Lab.Parent = Frame
         
         return Frame
@@ -1010,21 +1842,15 @@ function StartV3NENOHUB()
 
     local function NewButton(page, text, callback)
         local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.9, 0, 0, 42)
         btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         btn.Text = text
         btn.TextColor3 = Color3.fromRGB(255, 0, 0)
         btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 14
         btn.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         btn.Parent = page
         AddCorner(btn)
-        
-        if isMobile then
-            btn.Size = UDim2.new(0.9, 0, 0, 32)
-            btn.TextSize = 11
-        else
-            btn.Size = UDim2.new(0.9, 0, 0, 42)
-            btn.TextSize = 14
-        end
         
         btn.MouseButton1Click:Connect(function()
             pcall(callback)
@@ -1035,142 +1861,84 @@ function StartV3NENOHUB()
 
     local function NewSwitch(page, text, callback)
         local Bg = Instance.new("Frame")
+        Bg.Size = UDim2.new(0.9, 0, 0, 42)
         Bg.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         Bg.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         Bg.Parent = page
         AddCorner(Bg)
         
-        if isMobile then
-            Bg.Size = UDim2.new(0.9, 0, 0, 32)
-        else
-            Bg.Size = UDim2.new(0.9, 0, 0, 42)
-        end
-        
         local Lbl = Instance.new("TextLabel")
         Lbl.Parent = Bg
         Lbl.Text = text
         Lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+        Lbl.Position = UDim2.new(0.05, 0, 0, 0)
+        Lbl.Size = UDim2.new(0.6, 0, 1, 0)
         Lbl.BackgroundTransparency = 1
-        
-        if isMobile then
-            Lbl.Size = UDim2.new(0.6, 0, 1, 0)
-            Lbl.Position = UDim2.new(0.05, 0, 0, 0)
-            Lbl.TextSize = 10
-        else
-            Lbl.Size = UDim2.new(0.6, 0, 1, 0)
-            Lbl.Position = UDim2.new(0.05, 0, 0, 0)
-            Lbl.TextSize = 13
-        end
+        Lbl.TextSize = 13
         
         local Tgl = Instance.new("TextButton")
         Tgl.Parent = Bg
+        Tgl.Size = UDim2.new(0, 45, 0, 22)
+        Tgl.Position = UDim2.new(0.82, 0, 0.24, 0)
         Tgl.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
         Tgl.Text = ""
         AddCorner(Tgl, UDim.new(1, 0))
         
-        if isMobile then
-            Tgl.Size = UDim2.new(0, 32, 0, 16)
-            Tgl.Position = UDim2.new(0.78, 0, 0.25, 0)
-        else
-            Tgl.Size = UDim2.new(0, 45, 0, 22)
-            Tgl.Position = UDim2.new(0.82, 0, 0.24, 0)
-        end
-        
         local Circ = Instance.new("Frame")
         Circ.Parent = Tgl
+        Circ.Size = UDim2.new(0, 18, 0, 18)
+        Circ.Position = UDim2.new(0.05, 0, 0.09, 0)
         Circ.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         AddCorner(Circ, UDim.new(1, 0))
         
-        if isMobile then
-            Circ.Size = UDim2.new(0, 12, 0, 12)
-            Circ.Position = UDim2.new(0.05, 0, 0.125, 0)
-        else
-            Circ.Size = UDim2.new(0, 18, 0, 18)
-            Circ.Position = UDim2.new(0.05, 0, 0.09, 0)
-        end
-        
         local act = false
-        
-        local function toggleSwitch()
+        Tgl.MouseButton1Click:Connect(function()
             act = not act
             if TweenService then
                 if act then
-                    if isMobile then
-                        TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.5, 0, 0.125, 0)}):Play()
-                    else
-                        TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.52, 0, 0.09, 0)}):Play()
-                    end
+                    TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.52, 0, 0.09, 0)}):Play()
                     TweenService:Create(Tgl, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 0, 0)}):Play()
                 else
-                    if isMobile then
-                        TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.05, 0, 0.125, 0)}):Play()
-                    else
-                        TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.05, 0, 0.09, 0)}):Play()
-                    end
+                    TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.05, 0, 0.09, 0)}):Play()
                     TweenService:Create(Tgl, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
                 end
             else
-                if isMobile then
-                    Circ.Position = act and UDim2.new(0.5, 0, 0.125, 0) or UDim2.new(0.05, 0, 0.125, 0)
-                else
-                    Circ.Position = act and UDim2.new(0.52, 0, 0.09, 0) or UDim2.new(0.05, 0, 0.09, 0)
-                end
+                Circ.Position = act and UDim2.new(0.52, 0, 0.09, 0) or UDim2.new(0.05, 0, 0.09, 0)
                 Tgl.BackgroundColor3 = act and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(50, 50, 50)
             end
             pcall(callback, act)
-        end
-        
-        Tgl.MouseButton1Click:Connect(toggleSwitch)
+        end)
         
         return {Bg = Bg, Label = Lbl, Toggle = Tgl, Circle = Circ, State = false}
     end
 
     local function NewKeybind(page, text, default, callback)
         local Bg = Instance.new("Frame")
+        Bg.Size = UDim2.new(0.9, 0, 0, 42)
         Bg.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         Bg.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         Bg.Parent = page
         AddCorner(Bg)
         
-        if isMobile then
-            Bg.Size = UDim2.new(0.9, 0, 0, 32)
-        else
-            Bg.Size = UDim2.new(0.9, 0, 0, 42)
-        end
-        
         local Lbl = Instance.new("TextLabel")
         Lbl.Parent = Bg
         Lbl.Text = text
         Lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+        Lbl.Position = UDim2.new(0.05, 0, 0, 0)
+        Lbl.Size = UDim2.new(0.6, 0, 1, 0)
         Lbl.BackgroundTransparency = 1
-        
-        if isMobile then
-            Lbl.Size = UDim2.new(0.6, 0, 1, 0)
-            Lbl.Position = UDim2.new(0.05, 0, 0, 0)
-            Lbl.TextSize = 10
-        else
-            Lbl.Size = UDim2.new(0.6, 0, 1, 0)
-            Lbl.Position = UDim2.new(0.05, 0, 0, 0)
-            Lbl.TextSize = 13
-        end
+        Lbl.TextSize = 13
         
         local BindBtn = Instance.new("TextButton")
         BindBtn.Parent = Bg
+        BindBtn.Size = UDim2.new(0, 85, 0, 26)
+        BindBtn.Position = UDim2.new(0.72, 0, 0.19, 0)
         BindBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
         BindBtn.Text = default.Name
         BindBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
         BindBtn.Font = Enum.Font.SourceSansBold
+        BindBtn.TextSize = 13
         AddCorner(BindBtn)
-        
-        if isMobile then
-            BindBtn.Size = UDim2.new(0, 50, 0, 18)
-            BindBtn.Position = UDim2.new(0.7, 0, 0.22, 0)
-            BindBtn.TextSize = 10
-        else
-            BindBtn.Size = UDim2.new(0, 85, 0, 26)
-            BindBtn.Position = UDim2.new(0.72, 0, 0.19, 0)
-            BindBtn.TextSize = 13
-        end
         
         BindBtn.MouseButton1Click:Connect(function()
             BindBtn.Text = "..."
@@ -1189,46 +1957,28 @@ function StartV3NENOHUB()
 
     local function NewSlider(page, text, min, max, default, callback)
         local Bg = Instance.new("Frame")
+        Bg.Size = UDim2.new(0.9, 0, 0, 55)
         Bg.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         Bg.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         Bg.Parent = page
         AddCorner(Bg)
         
-        if isMobile then
-            Bg.Size = UDim2.new(0.9, 0, 0, 40)
-        else
-            Bg.Size = UDim2.new(0.9, 0, 0, 55)
-        end
-        
         local Lbl = Instance.new("TextLabel")
         Lbl.Parent = Bg
         Lbl.Text = text .. ": " .. default
         Lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+        Lbl.Position = UDim2.new(0, 0, 0, 5)
+        Lbl.Size = UDim2.new(1, 0, 0, 20)
         Lbl.BackgroundTransparency = 1
-        
-        if isMobile then
-            Lbl.Size = UDim2.new(1, 0, 0, 15)
-            Lbl.Position = UDim2.new(0, 0, 0, 5)
-            Lbl.TextSize = 10
-        else
-            Lbl.Size = UDim2.new(1, 0, 0, 20)
-            Lbl.Position = UDim2.new(0, 0, 0, 5)
-            Lbl.TextSize = 13
-        end
+        Lbl.TextSize = 13
         
         local SliderBar = Instance.new("TextButton")
         SliderBar.Parent = Bg
+        SliderBar.Size = UDim2.new(0.85, 0, 0, 7)
+        SliderBar.Position = UDim2.new(0.075, 0, 0.65, 0)
         SliderBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
         SliderBar.Text = ""
         AddCorner(SliderBar)
-        
-        if isMobile then
-            SliderBar.Size = UDim2.new(0.85, 0, 0, 5)
-            SliderBar.Position = UDim2.new(0.075, 0, 0.6, 0)
-        else
-            SliderBar.Size = UDim2.new(0.85, 0, 0, 7)
-            SliderBar.Position = UDim2.new(0.075, 0, 0.65, 0)
-        end
         
         local Fill = Instance.new("Frame")
         Fill.Parent = SliderBar
@@ -1236,18 +1986,14 @@ function StartV3NENOHUB()
         Fill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         AddCorner(Fill)
         
-        local function updateSlider(input)
-            local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
-            Fill.Size = UDim2.new(pos, 0, 1, 0)
-            local val = math.floor(min + (max - min) * pos)
-            Lbl.Text = text .. ": " .. val
-            pcall(callback, val)
-        end
-        
         SliderBar.MouseButton1Down:Connect(function()
             local move = UserInputService.InputChanged:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseMovement then
-                    updateSlider(input)
+                    local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+                    Fill.Size = UDim2.new(pos, 0, 1, 0)
+                    local val = math.floor(min + (max - min) * pos)
+                    Lbl.Text = text .. ": " .. val
+                    pcall(callback, val)
                 end
             end)
             
@@ -1259,66 +2005,517 @@ function StartV3NENOHUB()
                 end
             end)
         end)
+    end
+
+    CreateSection(PVP_Page, "Guns Mods")
+
+    NewSwitch(PVP_Page, "OVER POWER GUNS MOD", function(s)
+        ToggleOverpowerGuns(s)
+    end)
+
+    local InfoText = Instance.new("TextLabel")
+    InfoText.Size = UDim2.new(0.9, 0, 0, 30)
+    InfoText.BackgroundTransparency = 1
+    InfoText.Text = "[USE AT YOUR OWN RISK]"
+    InfoText.TextColor3 = Color3.fromRGB(255, 50, 50)
+    InfoText.Font = Enum.Font.SourceSansItalic
+    InfoText.TextSize = 12
+    InfoText.LayoutOrder = PVP_Page:GetChildren() and #PVP_Page:GetChildren() or 0
+    InfoText.Parent = PVP_Page
+
+    CreateSection(PVP_Page, "Aimbot Settings")
+
+    NewSwitch(PVP_Page, "AIMBOT DESKTOP", function(s)
+        getgenv().AimbotEnabled = s
+        AimbotEnabled = s
         
-        if isMobile and UserInputService then
-            SliderBar.TouchStarted:Connect(function()
-                local moveConnection
-                moveConnection = UserInputService.TouchMoved:Connect(function(input)
-                    updateSlider(input)
-                end)
-                
-                local endConnection
-                endConnection = UserInputService.TouchEnded:Connect(function()
-                    moveConnection:Disconnect()
-                    endConnection:Disconnect()
-                end)
+        if s then
+            local Players = game:GetService("Players")
+            local RunService = game:GetService("RunService")
+            local UserInputService = game:GetService("UserInputService")
+            local LocalPlayer = Players.LocalPlayer
+            local Camera = workspace.CurrentCamera
+
+            getgenv().AimbotKey = Enum.KeyCode.E
+            getgenv().AimbotEnabled = true
+            getgenv().AimbotFOV = 150
+            getgenv().AimPart = "Head"
+            getgenv().FriendCheckEnabled = true
+
+            local function GetClosestPlayer()
+                local closest = nil
+                local shortestDistance = getgenv().AimbotFOV
+                local mouseLocation = UserInputService:GetMouseLocation()
+
+                for _, v in pairs(Players:GetPlayers()) do
+                    if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(getgenv().AimPart) then
+                        local head = v.Character[getgenv().AimPart]
+                        local hum = v.Character:FindFirstChildOfClass("Humanoid")
+                        
+                        local passive = v.Character:FindFirstChild("Passive") or (v:FindFirstChild("States") and v.States:FindFirstChild("Passive") and v.States.Passive.Value)
+                        local isFriend = false
+                        pcall(function() isFriend = LocalPlayer:IsFriendsWith(v.UserId) end)
+
+                        if hum and hum.Health > 0 and not passive then
+                            if getgenv().FriendCheckEnabled and isFriend then continue end
+                            
+                            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                            if onScreen then
+                                local distance = (Vector2.new(pos.X, pos.Y) - mouseLocation).Magnitude
+                                if distance < shortestDistance then
+                                    closest = head
+                                    shortestDistance = distance
+                                end
+                            end
+                        end
+                    end
+                end
+                return closest
+            end
+
+            RunService.RenderStepped:Connect(function()
+                if getgenv().AimbotEnabled and UserInputService:IsKeyDown(getgenv().AimbotKey) then
+                    local target = GetClosestPlayer()
+                    if target then
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+                    end
+                end
             end)
+            
+            Notify("AIMBOT DESKTOP ATIVADO")
+        else
+            Notify("AIMBOT DESKTOP DESATIVADO")
+        end
+    end)
+
+    local aimbotKeybindBtn = NewKeybind(PVP_Page, "AIMBOT KEYBIND", AimBind, function(k)
+        getgenv().AimbotKey = k
+        AimBind = k
+        Notify("TECLA DO AIMBOT ALTERADA PARA: " .. k.Name)
+    end)
+
+    NewSwitch(PVP_Page, "AIMBOT MOBILE", function(s)
+        AimbotMobileAlwaysOn = s
+        AimbotMobileEnabled = s
+        
+        if s then
+            getgenv().AimbotEnabled = false
+            AimbotEnabled = false
+            
+            local Players = game:GetService("Players")
+            local RunService = game:GetService("RunService")
+            local LocalPlayer = Players.LocalPlayer
+            local Camera = workspace.CurrentCamera
+
+            getgenv().AimbotEnabled = true
+            getgenv().AimbotFOV = 150
+            getgenv().AimPart = "Head"
+            getgenv().TeamCheckEnabled = false
+            getgenv().FriendCheckEnabled = true
+
+            local function GetClosestPlayer()
+                local closest = nil
+                local shortestDistance = getgenv().AimbotFOV
+                local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+                for _, v in pairs(Players:GetPlayers()) do
+                    if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(getgenv().AimPart) then
+                        local head = v.Character[getgenv().AimPart]
+                        local hum = v.Character:FindFirstChildOfClass("Humanoid")
+                        
+                        local passive = v.Character:FindFirstChild("Passive") or (v:FindFirstChild("States") and v.States:FindFirstChild("Passive") and v.States.Passive.Value)
+                        local isFriend = false
+                        pcall(function() isFriend = LocalPlayer:IsFriendsWith(v.UserId) end)
+
+                        if hum and hum.Health > 0 and not passive then
+                            if getgenv().FriendCheckEnabled and isFriend then continue end
+                            
+                            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                            if onScreen then
+                                local distance = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                                if distance < shortestDistance then
+                                    closest = head
+                                    shortestDistance = distance
+                                end
+                            end
+                        end
+                    end
+                end
+                return closest
+            end
+
+            RunService.RenderStepped:Connect(function()
+                if getgenv().AimbotEnabled then
+                    local target = GetClosestPlayer()
+                    if target then
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+                    end
+                end
+            end)
+            
+            Notify("AIMBOT MOBILE ATIVADO")
+        else
+            CurrentTarget = nil
+            Notify("AIMBOT MOBILE DESATIVADO")
+        end
+    end)
+
+    NewSwitch(PVP_Page, "TEAM CHECK", function(s)
+        AimbotTeamCheck = s
+        Notify(s and "TEAM CHECK ATIVADO" or "TEAM CHECK DESATIVADO")
+    end)
+
+    NewSwitch(PVP_Page, "FRIEND CHECK", function(s)
+        getgenv().FriendCheckEnabled = s
+        FriendCheckEnabled = s
+        Notify(s and "FRIEND CHECK ATIVADO" or "FRIEND CHECK DESATIVADO")
+    end)
+
+    NewSlider(PVP_Page, "AIMBOT FOV SIZE", 50, 300, getgenv().AimbotFOV, function(v)
+        getgenv().AimbotFOV = v
+        if FOVCircle then FOVCircle.Radius = v end
+        Notify("TAMANHO DO FOV: " .. v)
+    end)
+
+    NewSlider(PVP_Page, "AIMBOT SMOOTHNESS", 0.1, 0.9, getgenv().AimbotSmoothness, function(v)
+        getgenv().AimbotSmoothness = v
+        Notify("SUAVIDADE DO AIMBOT: " .. string.format("%.1f", v))
+    end)
+
+    CreateSection(PVP_Page, "Autofarm System")
+
+    local FarmInfo = Instance.new("TextLabel")
+    FarmInfo.Size = UDim2.new(0.9, 0, 0, 130)
+    FarmInfo.BackgroundTransparency = 1
+    FarmInfo.TextColor3 = Color3.fromRGB(160, 160, 160)
+    FarmInfo.Text = [[
+1. CLICK 'AUTO FARM MONEY' BUTTON BELOW
+2. NEW PANEL WILL OPEN - CLICK 'START'
+3. WALK AROUND ONCE IN YOUR GAME
+4. RESET YOUR CHARACTER
+5. IF IT DOESN'T WORK: LEAVE GAME & REPEAT 
+
+
+
+
+
+
+
+
+
+
+
+
+]]
+    FarmInfo.Font = Enum.Font.SourceSansBold
+    FarmInfo.TextSize = 12
+    FarmInfo.TextWrapped = true
+    FarmInfo.LayoutOrder = PVP_Page:GetChildren() and #PVP_Page:GetChildren() or 0
+    FarmInfo.Parent = PVP_Page
+
+    local autoFarmBtn = Instance.new("TextButton")
+    autoFarmBtn.Size = UDim2.new(0.9, 0, 0, 42)
+    autoFarmBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    autoFarmBtn.Text = "PATCHED"
+    autoFarmBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    autoFarmBtn.Font = Enum.Font.SourceSansBold
+    autoFarmBtn.TextSize = 14
+    autoFarmBtn.LayoutOrder = PVP_Page:GetChildren() and #PVP_Page:GetChildren() or 0
+    autoFarmBtn.Parent = PVP_Page
+    autoFarmBtn.Active = false
+    autoFarmBtn.AutoButtonColor = false
+    AddCorner(autoFarmBtn)
+
+    CreateSection(VIS_Page, "ESP PLAYERS")
+
+    NewSwitch(VIS_Page, "ESP BODY", function(s)
+        ESP_Body_Enabled = s
+        Notify(s and "PLAYER ESP BODY ENABLED" or "PLAYER ESP BODY DISABLED")
+    end)
+
+    NewSwitch(VIS_Page, "PLAYER NAMES", function(s)
+        ESP_Names_Enabled = s
+        Notify(s and "PLAYER NAMES ENABLED" or "PLAYER NAMES DISABLED")
+    end)
+
+    NewSwitch(VIS_Page, "DISTANCE INFO", function(s)
+        ESP_Distance_Enabled = s
+        Notify(s and "DISTANCE INFO ENABLED" or "DISTANCE INFO DISABLED")
+    end)
+
+    NewSwitch(VIS_Page, "ESP LIFE PLAYER", function(s)
+        ESP_Life_Enabled = s
+        Notify(s and "PLAYER LIFE ESP ENABLED" or "PLAYER LIFE ESP DISABLED")
+    end)
+
+    InitializeUniversalESP()
+
+    CreateSection(VIS_Page, "ESP ANIMALS")
+
+    NewSwitch(VIS_Page, "ANIMAL ESP BODY", function(s)
+        ToggleAnimalBody(s)
+    end)
+
+    NewSwitch(VIS_Page, "ANIMAL NAMES", function(s)
+        ToggleAnimalNames(s)
+    end)
+
+    NewSwitch(VIS_Page, "ANIMAL DISTANCE", function(s)
+        ToggleAnimalDistance(s)
+    end)
+
+    CreateSection(MISC_Page, "LASSO MODS")
+
+    local function ToggleAntiLasso(enabled)
+        if enabled then
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/anti-la-o-westbound/refs/heads/main/ANTI%20LA%C3%87O%20WEST%20BOUND"))()
+            AntiLasso_Enabled = true
+            Notify("ANTI LASSO ENABLED")
+        else
+            AntiLasso_Enabled = false
+            Notify("ANTI LASSO DISABLED")
         end
     end
 
-    -- Botão Fechar (X)
-    local CloseBtn = Instance.new("TextButton")
-    CloseBtn.Parent = MainFrame
-    CloseBtn.Text = "X"
-    CloseBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CloseBtn.Font = Enum.Font.SourceSansBold
-    AddCorner(CloseBtn, UDim.new(0, 6))
-    
-    if isMobile then
-        CloseBtn.Size = UDim2.new(0, 24, 0, 24)
-        CloseBtn.Position = UDim2.new(0.94, 0, 0.02, 0)
-        CloseBtn.TextSize = 12
-    else
-        CloseBtn.Size = UDim2.new(0, 32, 0, 32)
-        CloseBtn.Position = UDim2.new(0.97, -35, 0.02, 0)
-        CloseBtn.TextSize = 18
+    local function ToggleAntiBreakFree(enabled)
+        if enabled then
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/anti-break-free-westbound/refs/heads/main/ANTI%20BREAK%20FREE%20WESTBOUND"))()
+            AntiBreakFree_Enabled = true
+            Notify("ANTI BREAK FREE ENABLED")
+        else
+            AntiBreakFree_Enabled = false
+            Notify("ANTI BREAK FREE DISABLED")
+        end
     end
-    
-    CloseBtn.MouseButton1Click:Connect(function()
-        ScreenGui:Destroy()
-        Notify("PANEL CLOSED")
+
+    local AntiLassoSwitch = NewSwitch(MISC_Page, "ANTI LASSO", function(s)
+        ToggleAntiLasso(s)
     end)
 
-    -- Botões da SideBar
+    local AntiBreakFreeSwitch = NewSwitch(MISC_Page, "ANTI BREAK FREE", function(s)
+        ToggleAntiBreakFree(s)
+    end)
+
+    CreateSection(MISC_Page, "PLAYER MODS")
+
+    NewSwitch(MISC_Page, "ANTI FALL DAMAGE", function(s)
+        ToggleAntiFallDamage(s)
+    end)
+
+    NewButton(MISC_Page, "AURA ROB", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/aurarobwestbound/refs/heads/main/aurarobwestbound"))()
+        Notify("AURA ROB ACTIVATED")
+    end)
+
+    CreateSection(MISC_Page, "MANSION FEATURES")
+
+    local WarningText = Instance.new("TextLabel")
+    WarningText.Size = UDim2.new(0.9, 0, 0, 40)
+    WarningText.BackgroundTransparency = 1
+    WarningText.Text = "[USE AT YOUR OWN RISK]\nAlways use in places near the mansion\nto avoid deaths and possible kicks"
+    WarningText.TextColor3 = Color3.fromRGB(255, 50, 50)
+    WarningText.Font = Enum.Font.SourceSansItalic
+    WarningText.TextSize = 12
+    WarningText.TextWrapped = true
+    WarningText.LayoutOrder = MISC_Page:GetChildren() and #MISC_Page:GetChildren() or 0
+    WarningText.Parent = MISC_Page
+
+    local AutoTPMansion_Enabled = false
+    local AutoTPMansion_Connection = nil
+    
+    local function ToggleAutoTPMansion(enabled)
+        AutoTPMansion_Enabled = enabled
+        
+        if enabled then
+            Notify("LOADING AUTO TP MANSION...")
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/auto-tp-mansio-westbound/refs/heads/main/AUTO%20TP%20MANSIO%20WESTBOUND"))()
+            Notify("AUTO TP MANSION ENABLED!")
+        else
+            if AutoTPMansion_Connection then
+                AutoTPMansion_Connection:Disconnect()
+                AutoTPMansion_Connection = nil
+            end
+            Notify("AUTO TP MANSION DISABLED")
+        end
+    end
+
+    local AutoTPMansionSwitch = NewSwitch(MISC_Page, "AUTO TP MANSION", function(s)
+        ToggleAutoTPMansion(s)
+    end)
+
+    local ESPBestJewelry_Enabled = false
+    local ESPBestJewelry_Connection = nil
+    
+    local function ToggleESPBestJewelry(enabled)
+        ESPBestJewelry_Enabled = enabled
+        
+        if enabled then
+            Notify("LOADING JEWELRY ESP...")
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/ESP-JOIAS-WESTBOUND-MANSION/refs/heads/main/ESP%20JOIAS%20WESTBOUND%20MANSION"))()
+            Notify("JEWELRY ESP ENABLED!")
+        else
+            if ESPBestJewelry_Connection then
+                ESPBestJewelry_Connection:Disconnect()
+                ESPBestJewelry_Connection = nil
+            end
+            Notify("JEWELRY ESP DISABLED")
+        end
+    end
+
+    local ESPBestJewelrySwitch = NewSwitch(MISC_Page, "ESP BEST JEWELRY", function(s)
+        ToggleESPBestJewelry(s)
+    end)
+
+    CreateSection(SET_Page, "UI CONFIGURATION")
+
+    local TipLabel = Instance.new("TextLabel")
+    TipLabel.Size = UDim2.new(0.9, 0, 0, 50)
+    TipLabel.BackgroundTransparency = 1
+    TipLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    TipLabel.Text = "Default toggle key: Left Control\nPress to show/hide the panel"
+    TipLabel.Font = Enum.Font.SourceSansItalic
+    TipLabel.TextSize = 14
+    TipLabel.TextWrapped = true
+    TipLabel.LayoutOrder = SET_Page:GetChildren() and #SET_Page:GetChildren() or 0
+    TipLabel.Parent = SET_Page
+
+    NewKeybind(SET_Page, "CHANGE TOGGLE KEY", ToggleKey, function(k)
+        ToggleKey = k
+        Notify("TOGGLE KEY: " .. k.Name)
+    end)
+
+    CreateSection(SET_Page, "MOBILE FEATURES")
+    
+    NewSwitch(SET_Page, "MOBILE MINIMIZE PANEL", function(s)
+        if s then
+            CreateMobileMinimizeButton()
+            Notify("MOBILE MINIMIZE ENABLED")
+        else
+            if mobileFloatingButton then
+                mobileFloatingButton:Destroy()
+                mobileFloatingButton = nil
+            end
+            if MainFrame then
+                MainFrame.Visible = true
+            end
+            Notify("MOBILE MINIMIZE DISABLED")
+        end
+    end)
+
+    CreateSection(DC_Page, "COMMUNITY V3NENO HUB")
+    
+    local DiscordInfo = Instance.new("TextLabel")
+    DiscordInfo.Size = UDim2.new(0.9, 0, 0, 100)
+    DiscordInfo.BackgroundTransparency = 1
+    DiscordInfo.TextColor3 = Color3.fromRGB(180, 180, 180)
+    DiscordInfo.Text = "Join our global Roblox community! Everyone is welcome to be part of our family. Follow community rules, maintain friendly environment."
+    DiscordInfo.Font = Enum.Font.SourceSansItalic
+    DiscordInfo.TextSize = 14
+    DiscordInfo.TextWrapped = true
+    DiscordInfo.LayoutOrder = DC_Page:GetChildren() and #DC_Page:GetChildren() or 0
+    DiscordInfo.Parent = DC_Page
+    
+    local DiscordBtn = NewButton(DC_Page, "COPY DISCORD LINK", function()
+        pcall(function()
+            setclipboard("https://discord.gg/3JSw8fDQbu")
+            Notify("DISCORD LINK COPIED!")
+        end)
+    end)
+
+    CreateSection(SITE_Page, "COMMUNITY V3NENO HUB")
+    
+    local SiteInfo = Instance.new("TextLabel")
+    SiteInfo.Size = UDim2.new(0.9, 0, 0, 100)
+    SiteInfo.BackgroundTransparency = 1
+    SiteInfo.TextColor3 = Color3.fromRGB(180, 180, 180)
+    SiteInfo.Text = "Find direct links for scripts from various games, download best executors, get full access to official V3NENO HUB panel with all games integrated."
+    SiteInfo.Font = Enum.Font.SourceSansItalic
+    SiteInfo.TextSize = 14
+    SiteInfo.TextWrapped = true
+    SiteInfo.LayoutOrder = SITE_Page:GetChildren() and #SITE_Page:GetChildren() or 0
+    SiteInfo.Parent = SITE_Page
+    
+    local SiteBtn = NewButton(SITE_Page, "COPY WEBSITE LINK", function()
+        pcall(function()
+            setclipboard("https://v3nenohub.lovable.app")
+            Notify("WEBSITE LINK COPIED!")
+        end)
+    end)
+
+    CreateSection(CREDITS_Page, "CREDITS - V3NENO HUB PANEL")
+
+    local CreditsHeader = Instance.new("TextLabel")
+    CreditsHeader.Size = UDim2.new(0.95, 0, 0, 50)
+    CreditsHeader.BackgroundTransparency = 1
+    CreditsHeader.Text = "V3NENO HUB WESTBOUND PANEL"
+    CreditsHeader.TextColor3 = Color3.fromRGB(255, 0, 0)
+    CreditsHeader.Font = Enum.Font.SourceSansBold
+    CreditsHeader.TextSize = 20
+    CreditsHeader.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
+    CreditsHeader.Parent = CREDITS_Page
+
+    local OwnerInfo = Instance.new("TextLabel")
+    OwnerInfo.Size = UDim2.new(0.95, 0, 0, 30)
+    OwnerInfo.BackgroundTransparency = 1
+    OwnerInfo.Text = "OWNER & DEVELOPER: HENRIQSZ7"
+    OwnerInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
+    OwnerInfo.Font = Enum.Font.SourceSansBold
+    OwnerInfo.TextSize = 16
+    OwnerInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
+    OwnerInfo.Parent = CREDITS_Page
+
+    local HubInfo = Instance.new("TextLabel")
+    HubInfo.Size = UDim2.new(0.95, 0, 0, 40)
+    HubInfo.BackgroundTransparency = 1
+    HubInfo.Text = "OFFICIAL PANEL: V3NENO HUB\nVERSION: 3.0 WESTBOUND"
+    HubInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+    HubInfo.Font = Enum.Font.SourceSans
+    HubInfo.TextSize = 14
+    HubInfo.TextWrapped = true
+    HubInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
+    HubInfo.Parent = CREDITS_Page
+
+    local ThanksFrame = Instance.new("Frame")
+    ThanksFrame.Size = UDim2.new(0.95, 0, 0, 80)
+    ThanksFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    ThanksFrame.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
+    ThanksFrame.Parent = CREDITS_Page
+    AddCorner(ThanksFrame, UDim.new(0, 4))
+
+    local ThanksLabel = Instance.new("TextLabel")
+    ThanksLabel.Size = UDim2.new(1, -10, 1, -10)
+    ThanksLabel.Position = UDim2.new(0.05, 0, 0.05, 0)
+    ThanksLabel.BackgroundTransparency = 1
+    ThanksLabel.Text = "THANKS FOR USING V3NENO HUB!\nSPECIAL THANKS TO OUR COMMUNITY\nAND ALL SUPPORTERS!"
+    ThanksLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ThanksLabel.Font = Enum.Font.SourceSansBold
+    ThanksLabel.TextSize = 12
+    ThanksLabel.TextWrapped = true
+    ThanksLabel.Parent = ThanksFrame
+
+    local ContactInfo = Instance.new("TextLabel")
+    ContactInfo.Size = UDim2.new(0.95, 0, 0, 60)
+    ContactInfo.BackgroundTransparency = 1
+    ContactInfo.Text = "FOR SUPPORT AND UPDATES:\nJOIN OUR DISCORD SERVER\nVISIT OUR WEBSITE"
+    ContactInfo.TextColor3 = Color3.fromRGB(150, 150, 255)
+    ContactInfo.Font = Enum.Font.SourceSansBold
+    ContactInfo.TextSize = 14
+    ContactInfo.TextWrapped = true
+    ContactInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
+    ContactInfo.Parent = CREDITS_Page
+
     local TabButtons = {}
     local function CreateTabBtn(name, order)
         local btn = Instance.new("TextButton")
         btn.Parent = SideBar
+        btn.Size = UDim2.new(0.9, 0, 0, 36)
         btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         btn.Text = name
         btn.TextColor3 = Color3.fromRGB(200, 200, 200)
         btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 13
         btn.LayoutOrder = order
         AddCorner(btn)
-        
-        if isMobile then
-            btn.Size = UDim2.new(0.9, 0, 0, 28)
-            btn.TextSize = 10
-        else
-            btn.Size = UDim2.new(0.9, 0, 0, 36)
-            btn.TextSize = 13
-        end
         
         btn.MouseButton1Click:Connect(function()
             for _, p in pairs(Pages) do p.Visible = false end
@@ -1340,509 +2537,144 @@ function StartV3NENOHUB()
     CreateTabBtn("SITE", 6)
     CreateTabBtn("CREDITS", 7)
 
-    -- Área do usuário
     local UserFrame = Instance.new("Frame")
     UserFrame.Parent = MainFrame
+    UserFrame.Position = UDim2.new(0.02, 0, 0.79, 0)
+    UserFrame.Size = UDim2.new(0, 140, 0, 70)
     UserFrame.BackgroundTransparency = 1
-    
-    if isMobile then
-        UserFrame.Size = UDim2.new(0.25, 0, 0, 50)
-        UserFrame.Position = UDim2.new(0.02, 0, 0.79, 0)
-    else
-        UserFrame.Size = UDim2.new(0, 140, 0, 70)
-        UserFrame.Position = UDim2.new(0.02, 0, 0.79, 0)
-    end
 
     local AvatarBack = Instance.new("Frame")
+    AvatarBack.Size = UDim2.new(0, 48, 0, 48)
+    AvatarBack.Position = UDim2.new(0, 0, 0.5, -24)
     AvatarBack.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     AvatarBack.Parent = UserFrame
     AddCorner(AvatarBack, UDim.new(1, 0))
-    
-    if isMobile then
-        AvatarBack.Size = UDim2.new(0, 35, 0, 35)
-        AvatarBack.Position = UDim2.new(0, 0, 0.5, -17)
-    else
-        AvatarBack.Size = UDim2.new(0, 48, 0, 48)
-        AvatarBack.Position = UDim2.new(0, 0, 0.5, -24)
-    end
 
     local Img = Instance.new("ImageLabel")
+    Img.Size = UDim2.new(0, 44, 0, 44)
+    Img.Position = UDim2.new(0.5, -22, 0.5, -22)
     Img.Image = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
     Img.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     Img.Parent = AvatarBack
     AddCorner(Img, UDim.new(1, 0))
-    
-    if isMobile then
-        Img.Size = UDim2.new(0, 31, 0, 31)
-        Img.Position = UDim2.new(0.5, -15.5, 0.5, -15.5)
-    else
-        Img.Size = UDim2.new(0, 44, 0, 44)
-        Img.Position = UDim2.new(0.5, -22, 0.5, -22)
-    end
 
     local Welcome = Instance.new("TextLabel")
     Welcome.Parent = UserFrame
+    Welcome.Position = UDim2.new(0.42, 0, 0.28, 0)
+    Welcome.Size = UDim2.new(0.55, 0, 0, 15)
     Welcome.Text = "Welcome,"
     Welcome.TextColor3 = Color3.fromRGB(150, 150, 150)
     Welcome.Font = Enum.Font.SourceSans
+    Welcome.TextSize = 13
     Welcome.BackgroundTransparency = 1
     Welcome.TextXAlignment = Enum.TextXAlignment.Left
-    
-    if isMobile then
-        Welcome.Size = UDim2.new(0.55, 0, 0, 10)
-        Welcome.Position = UDim2.new(0.4, 0, 0.2, 0)
-        Welcome.TextSize = 9
-    else
-        Welcome.Size = UDim2.new(0.55, 0, 0, 15)
-        Welcome.Position = UDim2.new(0.42, 0, 0.28, 0)
-        Welcome.TextSize = 13
-    end
 
     local UserName = Instance.new("TextLabel")
     UserName.Parent = UserFrame
+    UserName.Position = UDim2.new(0.42, 0, 0.48, 0)
+    UserName.Size = UDim2.new(0.55, 0, 0, 15)
     UserName.Text = LocalPlayer.Name
     UserName.TextColor3 = Color3.fromRGB(255, 255, 255)
     UserName.Font = Enum.Font.SourceSansBold
+    UserName.TextSize = 14
     UserName.BackgroundTransparency = 1
     UserName.TextXAlignment = Enum.TextXAlignment.Left
+
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Parent = MainFrame
+    CloseBtn.Text = "X"
+    CloseBtn.Size = UDim2.new(0, 32, 0, 32)
+    CloseBtn.Position = UDim2.new(0.93, 0, 0.02, 0)
+    CloseBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseBtn.Font = Enum.Font.SourceSansBold
+    CloseBtn.TextSize = 18
+    AddCorner(CloseBtn, UDim.new(0, 6))
     
-    if isMobile then
-        UserName.Size = UDim2.new(0.55, 0, 0, 12)
-        UserName.Position = UDim2.new(0.4, 0, 0.5, 0)
-        UserName.TextSize = 10
-    else
-        UserName.Size = UDim2.new(0.55, 0, 0, 15)
-        UserName.Position = UDim2.new(0.42, 0, 0.48, 0)
-        UserName.TextSize = 14
-    end
-
-    -- ============================================
-    -- CONTEÚDO DAS PÁGINAS
-    -- ============================================
-
-    -- PÁGINA PVP
-    CreateSection(PVP_Page, "Guns Mods")
-    NewSwitch(PVP_Page, "OVER POWER GUNS MOD", function(s)
-        OverpowerGunsEnabled = s
-        Notify(s and "OVER POWER GUNS ENABLED" or "OVER POWER GUNS DISABLED")
+    CloseBtn.MouseEnter:Connect(function()
+        CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+        CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+    
+    CloseBtn.MouseLeave:Connect(function()
+        CloseBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     end)
 
-    local InfoText = Instance.new("TextLabel")
-    InfoText.BackgroundTransparency = 1
-    InfoText.Text = "[USE AT YOUR OWN RISK]"
-    InfoText.TextColor3 = Color3.fromRGB(255, 50, 50)
-    InfoText.Font = Enum.Font.SourceSansItalic
-    InfoText.LayoutOrder = PVP_Page:GetChildren() and #PVP_Page:GetChildren() or 0
-    InfoText.Parent = PVP_Page
-    
-    if isMobile then
-        InfoText.Size = UDim2.new(0.9, 0, 0, 20)
-        InfoText.TextSize = 9
-    else
-        InfoText.Size = UDim2.new(0.9, 0, 0, 30)
-        InfoText.TextSize = 12
-    end
-
-    CreateSection(PVP_Page, "Aimbot Settings")
-    SetupAimbotInInterface(PVP_Page, Notify, NewSwitch, NewKeybind, NewSlider)
-
-    CreateSection(PVP_Page, "Autofarm System")
-    
-    local FarmInfo = Instance.new("TextLabel")
-    FarmInfo.BackgroundTransparency = 1
-    FarmInfo.TextColor3 = Color3.fromRGB(160, 160, 160)
-    FarmInfo.Text = [[
-1. CLICK 'AUTO FARM MONEY' BUTTON BELOW
-2. NEW PANEL WILL OPEN - CLICK 'START'
-3. WALK AROUND ONCE IN YOUR GAME
-4. RESET YOUR CHARACTER
-5. IF IT DOESN'T WORK: LEAVE GAME & REPEAT 
-]]
-    FarmInfo.Font = Enum.Font.SourceSansBold
-    FarmInfo.TextWrapped = true
-    FarmInfo.LayoutOrder = PVP_Page:GetChildren() and #PVP_Page:GetChildren() or 0
-    FarmInfo.Parent = PVP_Page
-    
-    if isMobile then
-        FarmInfo.Size = UDim2.new(0.9, 0, 0, 80)
-        FarmInfo.TextSize = 9
-    else
-        FarmInfo.Size = UDim2.new(0.9, 0, 0, 130)
-        FarmInfo.TextSize = 12
-    end
-
-    local AutoFarmBtn = NewButton(PVP_Page, "AUTO FARM MONEY", function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/WESTBOUND-AUTO-FARM-DINHEIRO-/refs/heads/main/WESTBOUND%20-%20AUTOFARM%20DINHEIRO"))()
-        Notify("AUTO FARM MONEY ACTIVATED")
-    end)
-
-    -- PÁGINA VISUALS
-    CreateSection(VIS_Page, "ESP PLAYERS")
-    NewSwitch(VIS_Page, "ESP BODY", function(s)
-        ESP_Body_Enabled = s
-        Notify(s and "PLAYER ESP BODY ENABLED" or "PLAYER ESP BODY DISABLED")
-    end)
-
-    NewSwitch(VIS_Page, "PLAYER NAMES", function(s)
-        ESP_Names_Enabled = s
-        Notify(s and "PLAYER NAMES ENABLED" or "PLAYER NAMES DISABLED")
-    end)
-
-    NewSwitch(VIS_Page, "DISTANCE INFO", function(s)
-        ESP_Distance_Enabled = s
-        Notify(s and "DISTANCE INFO ENABLED" or "DISTANCE INFO DISABLED")
-    end)
-
-    NewSwitch(VIS_Page, "ESP LIFE PLAYER", function(s)
-        ESP_Life_Enabled = s
-        Notify(s and "PLAYER LIFE ESP ENABLED" or "PLAYER LIFE ESP DISABLED")
-    end)
-
-    -- Inicializar ESP
-    local function InitializeUniversalESP()
-        -- Esta função será implementada posteriormente
-        Notify("ESP SYSTEM INITIALIZED")
-    end
-    
-    InitializeUniversalESP()
-
-    CreateSection(VIS_Page, "ESP ANIMALS")
-    NewSwitch(VIS_Page, "ANIMAL ESP BODY", function(s)
-        AnimalESP_Enabled = s
-        Notify(s and "ANIMAL ESP BODY ENABLED" or "ANIMAL ESP BODY DISABLED")
-    end)
-
-    NewSwitch(VIS_Page, "ANIMAL NAMES", function(s)
-        AnimalESP_Names_Enabled = s
-        Notify(s and "ANIMAL NAMES ENABLED" or "ANIMAL NAMES DISABLED")
-    end)
-
-    NewSwitch(VIS_Page, "ANIMAL DISTANCE", function(s)
-        AnimalESP_Distance_Enabled = s
-        Notify(s and "ANIMAL DISTANCE ENABLED" or "ANIMAL DISTANCE DISABLED")
-    end)
-
-    -- PÁGINA MISC
-    CreateSection(MISC_Page, "LASSO MODS")
-    NewSwitch(MISC_Page, "ANTI LASSO", function(s)
-        if s then
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/anti-la-o-westbound/refs/heads/main/ANTI%20LA%C3%87O%20WEST%20BOUND"))()
-            Notify("ANTI LASSO ENABLED")
-        else
-            Notify("ANTI LASSO DISABLED")
-        end
-    end)
-
-    NewSwitch(MISC_Page, "ANTI BREAK FREE", function(s)
-        if s then
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/anti-break-free-westbound/refs/heads/main/ANTI%20BREAK%20FREE%20WESTBOUND"))()
-            Notify("ANTI BREAK FREE ENABLED")
-        else
-            Notify("ANTI BREAK FREE DISABLED")
-        end
-    end)
-
-    CreateSection(MISC_Page, "PLAYER MODS")
-    NewSwitch(MISC_Page, "ANTI FALL DAMAGE", function(s)
-        if s then
-            -- Implementar anti fall damage
-            Notify("ANTI FALL DAMAGE ENABLED")
-        else
-            Notify("ANTI FALL DAMAGE DISABLED")
-        end
-    end)
-
-    NewButton(MISC_Page, "AURA ROB", function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/aurarobwestbound/refs/heads/main/aurarobwestbound"))()
-        Notify("AURA ROB ACTIVATED")
-    end)
-
-    CreateSection(MISC_Page, "MANSION FEATURES")
-    
-    local WarningText = Instance.new("TextLabel")
-    WarningText.BackgroundTransparency = 1
-    WarningText.Text = "[USE AT YOUR OWN RISK]\nAlways use in places near the mansion\nto avoid deaths and possible kicks"
-    WarningText.TextColor3 = Color3.fromRGB(255, 50, 50)
-    WarningText.Font = Enum.Font.SourceSansItalic
-    WarningText.TextWrapped = true
-    WarningText.LayoutOrder = MISC_Page:GetChildren() and #MISC_Page:GetChildren() or 0
-    WarningText.Parent = MISC_Page
-    
-    if isMobile then
-        WarningText.Size = UDim2.new(0.9, 0, 0, 35)
-        WarningText.TextSize = 9
-    else
-        WarningText.Size = UDim2.new(0.9, 0, 0, 40)
-        WarningText.TextSize = 12
-    end
-
-    NewSwitch(MISC_Page, "AUTO TP MANSION", function(s)
-        if s then
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/auto-tp-mansio-westbound/refs/heads/main/AUTO%20TP%20MANSIO%20WESTBOUND"))()
-            Notify("AUTO TP MANSION ENABLED")
-        else
-            Notify("AUTO TP MANSION DISABLED")
-        end
-    end)
-
-    NewSwitch(MISC_Page, "ESP BEST JEWELRY", function(s)
-        if s then
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/ESP-JOIAS-WESTBOUND-MANSION/refs/heads/main/ESP%20JOIAS%20WESTBOUND%20MANSION"))()
-            Notify("ESP BEST JEWELRY ENABLED")
-        else
-            Notify("ESP BEST JEWELRY DISABLED")
-        end
-    end)
-
-    -- PÁGINA SETTINGS
-    CreateSection(SET_Page, "UI CONFIGURATION")
-    
-    local TipLabel = Instance.new("TextLabel")
-    TipLabel.BackgroundTransparency = 1
-    TipLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-    TipLabel.Text = "Default toggle key: Left Control\nPress to show/hide the panel"
-    TipLabel.Font = Enum.Font.SourceSansItalic
-    TipLabel.TextWrapped = true
-    TipLabel.LayoutOrder = SET_Page:GetChildren() and #SET_Page:GetChildren() or 0
-    TipLabel.Parent = SET_Page
-    
-    if isMobile then
-        TipLabel.Size = UDim2.new(0.9, 0, 0, 35)
-        TipLabel.TextSize = 10
-    else
-        TipLabel.Size = UDim2.new(0.9, 0, 0, 50)
-        TipLabel.TextSize = 14
-    end
-
-    NewKeybind(SET_Page, "CHANGE TOGGLE KEY", ToggleKey, function(k)
-        ToggleKey = k
-        Notify("TOGGLE KEY: " .. k.Name)
-    end)
-
-    CreateSection(SET_Page, "MOBILE FEATURES")
-    
-    NewSwitch(SET_Page, "MOBILE MINIMIZE PANEL", function(s)
-        if s and isMobile then
-            -- Criar botão de minimizar para mobile
-            local mobileBtn = Instance.new("TextButton")
-            mobileBtn.Name = "MobileMinimizeButton"
-            mobileBtn.Size = UDim2.new(0, 50, 0, 50)
-            mobileBtn.Position = UDim2.new(0.9, 0, 0.1, 0)
-            mobileBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            mobileBtn.Text = "V"
-            mobileBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            mobileBtn.Font = Enum.Font.SourceSansBold
-            mobileBtn.TextSize = 24
-            mobileBtn.ZIndex = 1000
-            mobileBtn.Parent = ScreenGui
-            AddCorner(mobileBtn, UDim.new(1, 0))
-            
-            mobileBtn.MouseButton1Click:Connect(function()
-                MainFrame.Visible = not MainFrame.Visible
-                if MainFrame.Visible then
-                    mobileBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-                    Notify("PANEL RESTORED")
-                else
-                    mobileBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                    Notify("PANEL MINIMIZED")
-                end
-            end)
-            
-            Notify("MOBILE MINIMIZE ENABLED")
-        else
-            local btn = ScreenGui:FindFirstChild("MobileMinimizeButton")
-            if btn then btn:Destroy() end
-            MainFrame.Visible = true
-            Notify("MOBILE MINIMIZE DISABLED")
-        end
-    end)
-
-    -- PÁGINA DISCORD
-    CreateSection(DC_Page, "COMMUNITY V3NENO HUB")
-    
-    local DiscordInfo = Instance.new("TextLabel")
-    DiscordInfo.BackgroundTransparency = 1
-    DiscordInfo.TextColor3 = Color3.fromRGB(180, 180, 180)
-    DiscordInfo.Text = "Join our global Roblox community! Everyone is welcome to be part of our family. Follow community rules, maintain friendly environment."
-    DiscordInfo.Font = Enum.Font.SourceSansItalic
-    DiscordInfo.TextWrapped = true
-    DiscordInfo.LayoutOrder = DC_Page:GetChildren() and #DC_Page:GetChildren() or 0
-    DiscordInfo.Parent = DC_Page
-    
-    if isMobile then
-        DiscordInfo.Size = UDim2.new(0.9, 0, 0, 60)
-        DiscordInfo.TextSize = 10
-    else
-        DiscordInfo.Size = UDim2.new(0.9, 0, 0, 100)
-        DiscordInfo.TextSize = 14
-    end
-    
-    local DiscordBtn = NewButton(DC_Page, "COPY DISCORD LINK", function()
-        pcall(function()
-            setclipboard("https://discord.gg/3JSw8fDQbu")
-            Notify("DISCORD LINK COPIED!")
-        end)
-    end)
-
-    -- PÁGINA SITE
-    CreateSection(SITE_Page, "COMMUNITY V3NENO HUB")
-    
-    local SiteInfo = Instance.new("TextLabel")
-    SiteInfo.BackgroundTransparency = 1
-    SiteInfo.TextColor3 = Color3.fromRGB(180, 180, 180)
-    SiteInfo.Text = "Find direct links for scripts from various games, download best executors, get full access to official V3NENO HUB panel with all games integrated."
-    SiteInfo.Font = Enum.Font.SourceSansItalic
-    SiteInfo.TextWrapped = true
-    SiteInfo.LayoutOrder = SITE_Page:GetChildren() and #SITE_Page:GetChildren() or 0
-    SiteInfo.Parent = SITE_Page
-    
-    if isMobile then
-        SiteInfo.Size = UDim2.new(0.9, 0, 0, 60)
-        SiteInfo.TextSize = 10
-    else
-        SiteInfo.Size = UDim2.new(0.9, 0, 0, 100)
-        SiteInfo.TextSize = 14
-    end
-    
-    local SiteBtn = NewButton(SITE_Page, "COPY WEBSITE LINK", function()
-        pcall(function()
-            setclipboard("https://v3nenohub.lovable.app")
-            Notify("WEBSITE LINK COPIED!")
-        end)
-    end)
-
-    -- PÁGINA CREDITS
-    CreateSection(CREDITS_Page, "CREDITS - V3NENO HUB PANEL")
-
-    local CreditsHeader = Instance.new("TextLabel")
-    CreditsHeader.BackgroundTransparency = 1
-    CreditsHeader.Text = "V3NENO HUB WESTBOUND PANEL"
-    CreditsHeader.TextColor3 = Color3.fromRGB(255, 0, 0)
-    CreditsHeader.Font = Enum.Font.SourceSansBold
-    CreditsHeader.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
-    CreditsHeader.Parent = CREDITS_Page
-    
-    if isMobile then
-        CreditsHeader.Size = UDim2.new(0.95, 0, 0, 30)
-        CreditsHeader.TextSize = 16
-    else
-        CreditsHeader.Size = UDim2.new(0.95, 0, 0, 50)
-        CreditsHeader.TextSize = 20
-    end
-
-    local OwnerInfo = Instance.new("TextLabel")
-    OwnerInfo.BackgroundTransparency = 1
-    OwnerInfo.Text = "OWNER & DEVELOPER: HENRIQSZ7"
-    OwnerInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
-    OwnerInfo.Font = Enum.Font.SourceSansBold
-    OwnerInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
-    OwnerInfo.Parent = CREDITS_Page
-    
-    if isMobile then
-        OwnerInfo.Size = UDim2.new(0.95, 0, 0, 20)
-        OwnerInfo.TextSize = 12
-    else
-        OwnerInfo.Size = UDim2.new(0.95, 0, 0, 30)
-        OwnerInfo.TextSize = 16
-    end
-
-    local HubInfo = Instance.new("TextLabel")
-    HubInfo.BackgroundTransparency = 1
-    HubInfo.Text = "OFFICIAL PANEL: V3NENO HUB\nVERSION: 3.0 WESTBOUND"
-    HubInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
-    HubInfo.Font = Enum.Font.SourceSans
-    HubInfo.TextWrapped = true
-    HubInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
-    HubInfo.Parent = CREDITS_Page
-    
-    if isMobile then
-        HubInfo.Size = UDim2.new(0.95, 0, 0, 25)
-        HubInfo.TextSize = 10
-    else
-        HubInfo.Size = UDim2.new(0.95, 0, 0, 40)
-        HubInfo.TextSize = 14
-    end
-
-    local ThanksFrame = Instance.new("Frame")
-    ThanksFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    ThanksFrame.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
-    ThanksFrame.Parent = CREDITS_Page
-    AddCorner(ThanksFrame, UDim.new(0, 4))
-    
-    if isMobile then
-        ThanksFrame.Size = UDim2.new(0.95, 0, 0, 50)
-    else
-        ThanksFrame.Size = UDim2.new(0.95, 0, 0, 80)
-    end
-
-    local ThanksLabel = Instance.new("TextLabel")
-    ThanksLabel.Size = UDim2.new(1, -10, 1, -10)
-    ThanksLabel.Position = UDim2.new(0.05, 0, 0.05, 0)
-    ThanksLabel.BackgroundTransparency = 1
-    ThanksLabel.Text = "THANKS FOR USING V3NENO HUB!\nSPECIAL THANKS TO OUR COMMUNITY\nAND ALL SUPPORTERS!"
-    ThanksLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ThanksLabel.Font = Enum.Font.SourceSansBold
-    ThanksLabel.TextWrapped = true
-    ThanksLabel.Parent = ThanksFrame
-    
-    if isMobile then
-        ThanksLabel.TextSize = 9
-    else
-        ThanksLabel.TextSize = 12
-    end
-
-    local ContactInfo = Instance.new("TextLabel")
-    ContactInfo.BackgroundTransparency = 1
-    ContactInfo.Text = "FOR SUPPORT AND UPDATES:\nJOIN OUR DISCORD SERVER\nVISIT OUR WEBSITE"
-    ContactInfo.TextColor3 = Color3.fromRGB(150, 150, 255)
-    ContactInfo.Font = Enum.Font.SourceSansBold
-    ContactInfo.TextWrapped = true
-    ContactInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
-    ContactInfo.Parent = CREDITS_Page
-    
-    if isMobile then
-        ContactInfo.Size = UDim2.new(0.95, 0, 0, 35)
-        ContactInfo.TextSize = 10
-    else
-        ContactInfo.Size = UDim2.new(0.95, 0, 0, 60)
-        ContactInfo.TextSize = 14
-    end
-
-    -- ============================================
-    -- SISTEMA DE TOGGLE DO PAINEL
-    -- ============================================
-    if UserInputService then
-        local toggleConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if not gameProcessed and input.KeyCode == ToggleKey then
-                MainFrame.Visible = not MainFrame.Visible
-                if isMobile then
-                    local mobileBtn = ScreenGui:FindFirstChild("MobileMinimizeButton")
-                    if mobileBtn then
-                        if MainFrame.Visible then
-                            mobileBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-                        else
-                            mobileBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                        end
-                    end
-                end
-                Notify(MainFrame.Visible and "PANEL OPENED" or "PANEL CLOSED")
-            end
-        end)
-        table.insert(ActiveConnections, toggleConnection)
-    end
-
-    -- Notificações iniciais
-    task.spawn(function()
-        task.wait(1)
-        if isMobile then
-            Notify("📱 V3NENO HUB - MOBILE DEVICE DETECTED")
-            Notify("USE MOBILE FEATURES IN SETTINGS MENU")
-        else
-            Notify("💻 V3NENO HUB - PC DEVICE DETECTED")
+    CloseBtn.MouseButton1Click:Connect(function()
+        for _, conn in pairs(ActiveConnections) do
+            pcall(function() conn:Disconnect() end)
         end
         
-        Notify("PRESS " .. ToggleKey.Name .. " TO TOGGLE MENU")
-        Notify("VERSION 3.0 WESTBOUND - LOADED SUCCESSFULLY")
+        for _, data in pairs(ESPStorage.Players) do
+            if data then
+                pcall(function()
+                    if data.Connection then data.Connection:Disconnect() end
+                    if data.Highlight then data.Highlight:Destroy() end
+                    if data.IsMobile then
+                        if data.TextDisplay then
+                            data.TextDisplay:Destroy()
+                        end
+                        if data.LifeDisplay then
+                            data.LifeDisplay:Destroy()
+                        end
+                    else
+                        if data.TextDisplay then 
+                            pcall(function() data.TextDisplay:Remove() end)
+                        end
+                        if data.LifeDisplay then
+                            pcall(function() data.LifeDisplay:Remove() end)
+                        end
+                    end
+                end)
+            end
+        end
+        
+        CleanupAnimalESP()
+        
+        if mobileFloatingButton then
+            mobileFloatingButton:Destroy()
+            mobileFloatingButton = nil
+        end
+        
+        CleanupAimbot()
+        
+        if OverpowerGunsEnabled then
+            RestoreOriginalGuns()
+        end
+        
+        ScreenGui:Destroy()
+        Notify("PANEL CLOSED")
+    end)
+
+    local toggleConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == ToggleKey then
+            MainFrame.Visible = not MainFrame.Visible
+        end
+    end)
+    table.insert(ActiveConnections, toggleConnection)
+
+    task.spawn(function()
+        task.wait(1)
+        
+        if isMobile then
+            Notify("📱 V3NENO HUB - DISPOSITIVO MOBILE DETECTADO")
+            Notify("USE OS RECURSOS MOBILE NO MENU")
+            if AimbotMobileAlwaysOn then
+                CreateAimbotMobileFloatingButton(ScreenGui)
+            end
+        else
+            Notify("💻 V3NENO HUB - DISPOSITIVO DESKTOP DETECTADO")
+        end
+        
+        Notify("PRESSIONE " .. ToggleKey.Name .. " PARA ABRIR/FECHAR MENU")
+        Notify("VERSÃO 3.0 WESTBOUND - CARREGADA COM SUCESSO")
+        
+        if isMobile then
+            Notify("AIMBOT MOBILE: ATIVE NO MENU PARA BOTÃO FLUTUANTE")
+        else
+            Notify("AIMBOT DESKTOP: TECLA " .. AimBind.Name .. " (ALTERÁVEL)")
+        end
     end)
 end
 
