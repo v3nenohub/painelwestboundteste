@@ -1,5 +1,5 @@
 local KEY_SYSTEM = {
-    CURRENT_KEY = "5d9ecbd1-68d2-41a7-aa72-159d98ae862e",
+    CURRENT_KEY = "47b9ff17-526f-4bb3-9a57-e2b122c41b9a",
     ADMIN_KEY = "henriqsz77",
     KEY_LINK = "https://link-target.net/1206605/OABXheqCjdpA",
     LINKVERTISE_LINK = "https://link-target.net/1206605/OABXheqCjdpA",
@@ -22,6 +22,7 @@ local function IsValidKey(inputKey)
     return false, "invalid"
 end
 
+-- FUNÇÕES ESSENCIAIS PARA DETECÇÃO DE DISPOSITIVO
 local function SafeGetService(serviceName)
     local success, service = pcall(function()
         return game:GetService(serviceName)
@@ -39,9 +40,40 @@ local ReplicatedStorage = SafeGetService("ReplicatedStorage") or game.Replicated
 local LocalPlayer = Players and Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- ============================================
--- SISTEMA DE AIMBOT (MOBILE E PC)
--- ============================================
+-- Funções para detecção de dispositivo CORRIGIDAS
+local function IsMobileDevice()
+    return UserInputService and UserInputService.TouchEnabled
+end
+
+local function IsPCDevice()
+    return not IsMobileDevice()
+end
+
+-- Função de escala responsiva ADICIONADA
+local function CreateResponsiveUIScale()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "V3NENO_UI_SCALE"
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    local uiScale = Instance.new("UIScale")
+    uiScale.Parent = screenGui
+    
+    local function updateScale()
+        local viewportSize = Camera.ViewportSize
+        if IsMobileDevice() then
+            local baseSize = Vector2.new(1280, 720)
+            local scale = math.min(viewportSize.X / baseSize.X, viewportSize.Y / baseSize.Y)
+            uiScale.Scale = math.clamp(scale * 0.8, 0.5, 0.85) -- Reduzido para melhor encaixe
+        else
+            uiScale.Scale = 1
+        end
+    end
+    
+    Camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+    updateScale()
+    
+    return screenGui
+end
 
 -- Variáveis globais do aimbot
 local AimbotEnabled = false
@@ -89,7 +121,7 @@ local function GetClosestPlayer()
     local shortestDistance = getgenv().AimbotFOV
     local mouseLocation = Vector2.new(0, 0)
     
-    local isMobile = UserInputService and UserInputService.TouchEnabled
+    local isMobile = IsMobileDevice()
     
     if not isMobile then
         pcall(function() mouseLocation = UserInputService:GetMouseLocation() end)
@@ -134,7 +166,7 @@ local function IsUserMovingCamera()
 end
 
 -- Função para criar botão flutuante do aimbot mobile
-local function CreateAimbotMobileFloatingButton(ScreenGui)
+local function CreateAimbotMobileFloatingButton(parentGui)
     if AimbotMobileFloatingButton then
         AimbotMobileFloatingButton:Destroy()
         AimbotMobileFloatingButton = nil
@@ -150,7 +182,7 @@ local function CreateAimbotMobileFloatingButton(ScreenGui)
     AimbotMobileFloatingButton.Font = Enum.Font.SourceSansBold
     AimbotMobileFloatingButton.TextSize = 14
     AimbotMobileFloatingButton.ZIndex = 1000
-    AimbotMobileFloatingButton.Parent = ScreenGui
+    AimbotMobileFloatingButton.Parent = parentGui
     
     local Corner = Instance.new("UICorner")
     Corner.CornerRadius = UDim.new(1, 0)
@@ -195,14 +227,16 @@ local function CreateAimbotMobileFloatingButton(ScreenGui)
         end
     end)
     
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input == dragInput) then
-            local delta = input.Position - dragStart
-            local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - 70)
-            local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - 70)
-            AimbotMobileFloatingButton.Position = UDim2.new(0, newX, 0, newY)
-        end
-    end)
+    if UserInputService then
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input == dragInput) then
+                local delta = input.Position - dragStart
+                local newX = math.clamp(startPos.X.Offset + delta.X, 0, parentGui.AbsoluteSize.X - 70)
+                local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, parentGui.AbsoluteSize.Y - 70)
+                AimbotMobileFloatingButton.Position = UDim2.new(0, newX, 0, newY)
+            end
+        end)
+    end
     
     -- Toggle do aimbot mobile
     AimbotMobileFloatingButton.MouseButton1Click:Connect(function()
@@ -224,37 +258,11 @@ local function CreateAimbotMobileFloatingButton(ScreenGui)
 end
 
 -- Função principal do loop do aimbot
-local function SetupAimbotLoop(ScreenGui, Notify)
-    local isMobile = UserInputService and UserInputService.TouchEnabled
-    
-    -- Criar FOV Circle apenas para desktop
-    if not isMobile then
-        local success, circle = pcall(function()
-            local draw = Drawing.new("Circle")
-            draw.Thickness = 1
-            draw.NumSides = 60
-            draw.Radius = getgenv().AimbotFOV
-            draw.Filled = false
-            draw.Visible = false
-            draw.Color = Color3.fromRGB(255, 0, 0)
-            return draw
-        end)
-        if success then FOVCircle = circle end
-    end
+local function SetupAimbotLoop()
+    local isMobile = IsMobileDevice()
     
     -- Conexão principal do aimbot
     local aimbotConnection = RunService.RenderStepped:Connect(function()
-        -- Atualizar FOV Circle para desktop
-        if FOVCircle then
-            FOVCircle.Visible = getgenv().AimbotEnabled
-            FOVCircle.Radius = getgenv().AimbotFOV
-            
-            if getgenv().AimbotEnabled and not isMobile then
-                local mousePos = UserInputService:GetMouseLocation()
-                FOVCircle.Position = mousePos
-            end
-        end
-        
         -- LÓGICA AIMBOT DESKTOP (COM KEYBIND)
         if getgenv().AimbotEnabled and not AimbotMobileAlwaysOn then
             if UserInputService and UserInputService:IsKeyDown(getgenv().AimbotKey) then
@@ -318,74 +326,65 @@ local function SetupAimbotInInterface(PVP_Page, Notify, NewSwitch, NewKeybind, N
         -- Se ativar desktop, desativa mobile
         if s and AimbotMobileAlwaysOn then
             AimbotMobileAlwaysOn = false
-            AimbotMobileEnabled = false
             
             -- Remover botão flutuante do mobile se existir
             if AimbotMobileFloatingButton then
                 AimbotMobileFloatingButton:Destroy()
                 AimbotMobileFloatingButton = nil
             end
-            
-            Notify("AIMBOT DESKTOP ATIVADO - MOBILE DESATIVADO")
-            Notify("PRESSIONE " .. AimBind.Name .. " PARA USAR")
-        else
-            Notify(s and "AIMBOT DESKTOP ATIVADO" or "AIMBOT DESKTOP DESATIVADO")
         end
     end)
 
     local aimbotKeybindBtn = NewKeybind(PVP_Page, "AIMBOT KEYBIND", AimBind, function(k)
         getgenv().AimbotKey = k
         AimBind = k
-        Notify("TECLA DO AIMBOT ALTERADA PARA: " .. k.Name)
     end)
 
     -- AIMBOT MOBILE COM BOTÃO FLUTUANTE
     NewSwitch(PVP_Page, "AIMBOT MOBILE", function(s)
         AimbotMobileAlwaysOn = s
-        AimbotMobileEnabled = s
         
         if s then
             -- Se ativar mobile, desativa desktop
             getgenv().AimbotEnabled = false
             AimbotEnabled = false
             
-            Notify("AIMBOT MOBILE ATIVADO")
+            -- Criar botão flutuante
+            if IsMobileDevice() then
+                local screenGui = game.CoreGui:FindFirstChild("V3NENO_HUB_MAIN")
+                if screenGui then
+                    CreateAimbotMobileFloatingButton(screenGui)
+                end
+            end
         else
             CurrentTarget = nil  -- Limpar alvo atual
-            Notify("AIMBOT MOBILE DESATIVADO")
+            if AimbotMobileFloatingButton then
+                AimbotMobileFloatingButton:Destroy()
+                AimbotMobileFloatingButton = nil
+            end
         end
     end)
 
     NewSwitch(PVP_Page, "TEAM CHECK", function(s)
         AimbotTeamCheck = s
-        Notify(s and "TEAM CHECK ATIVADO" or "TEAM CHECK DESATIVADO")
     end)
 
     NewSwitch(PVP_Page, "FRIEND CHECK", function(s)
         getgenv().FriendCheckEnabled = s
         FriendCheckEnabled = s
-        Notify(s and "FRIEND CHECK ATIVADO" or "FRIEND CHECK DESATIVADO")
     end)
 
     NewSlider(PVP_Page, "AIMBOT FOV SIZE", 50, 300, getgenv().AimbotFOV, function(v)
         getgenv().AimbotFOV = v
-        if FOVCircle then FOVCircle.Radius = v end
-        Notify("TAMANHO DO FOV: " .. v)
     end)
 
     NewSlider(PVP_Page, "AIMBOT SMOOTHNESS", 0.1, 0.9, getgenv().AimbotSmoothness, function(v)
         getgenv().AimbotSmoothness = v
-        Notify("SUAVIDADE DO AIMBOT: " .. string.format("%.1f", v))
     end)
 end
 
 -- Função para limpar recursos do aimbot
 local function CleanupAimbot()
-    if FOVCircle then 
-        pcall(function() FOVCircle:Remove() end) 
-        FOVCircle = nil
-    end
-    
     if AimbotMobileFloatingButton then
         AimbotMobileFloatingButton:Destroy()
         AimbotMobileFloatingButton = nil
@@ -396,19 +395,28 @@ local function CleanupAimbot()
     getgenv().AimbotEnabled = false
 end
 
--- ============================================
--- RESTANTE DO CÓDIGO (LOGIN PANEL E STARTV3NENOHUB)
--- ============================================
-
+-- FUNÇÃO DO PAINEL DE LOGIN COM RESPONSIVIDADE CORRIGIDA
 local function CreateLoginPanel()
     local LoginScreenGui = Instance.new("ScreenGui")
     LoginScreenGui.Name = "V3NENO_HUB_LOGIN"
     LoginScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     LoginScreenGui.Parent = game.CoreGui or LocalPlayer.PlayerGui
     
+    local isMobile = IsMobileDevice()
+    local screenSize = Camera.ViewportSize
+    
     local MainFrame = Instance.new("Frame")
-    MainFrame.Size = UDim2.new(0, 400, 0, 450)
-    MainFrame.Position = UDim2.new(0.5, -200, 0.5, -225)
+    if isMobile then
+        -- Tamanhos adaptados para mobile
+        local width = math.min(340, screenSize.X * 0.9)
+        local height = math.min(420, screenSize.Y * 0.8)
+        MainFrame.Size = UDim2.new(0, width, 0, height)
+        MainFrame.Position = UDim2.new(0.5, -width/2, 0.5, -height/2)
+    else
+        MainFrame.Size = UDim2.new(0, 400, 0, 450)
+        MainFrame.Position = UDim2.new(0.5, -200, 0.5, -225)
+    end
+    
     MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
     MainFrame.Parent = LoginScreenGui
     MainFrame.Active = true
@@ -424,7 +432,7 @@ local function CreateLoginPanel()
     Stroke.Parent = MainFrame
     
     local Header = Instance.new("Frame")
-    Header.Size = UDim2.new(1, 0, 0, 70)
+    Header.Size = UDim2.new(1, 0, 0, isMobile and 60 or 70)
     Header.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     Header.Parent = MainFrame
     
@@ -439,7 +447,7 @@ local function CreateLoginPanel()
     Title.Text = "V3NENO HUB ACCESS PANEL"
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Font = Enum.Font.SourceSansBold
-    Title.TextSize = 20
+    Title.TextSize = isMobile and 16 or 20
     Title.TextXAlignment = Enum.TextXAlignment.Left
     Title.Parent = Header
     
@@ -450,7 +458,7 @@ local function CreateLoginPanel()
     SubTitle.Text = "WESTBOUND PRIVATE SCRIPT"
     SubTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
     SubTitle.Font = Enum.Font.SourceSans
-    SubTitle.TextSize = 14
+    SubTitle.TextSize = isMobile and 10 or 14
     SubTitle.TextXAlignment = Enum.TextXAlignment.Left
     SubTitle.Parent = Header
     
@@ -461,7 +469,7 @@ local function CreateLoginPanel()
     CloseBtn.Text = "X"
     CloseBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     CloseBtn.Font = Enum.Font.SourceSansBold
-    CloseBtn.TextSize = 18
+    CloseBtn.TextSize = isMobile and 14 or 18
     CloseBtn.Parent = Header
     
     local CloseCorner = Instance.new("UICorner")
@@ -469,33 +477,42 @@ local function CreateLoginPanel()
     CloseCorner.Parent = CloseBtn
     
     local Content = Instance.new("Frame")
-    Content.Size = UDim2.new(1, -40, 1, -90)
-    Content.Position = UDim2.new(0, 20, 0, 80)
+    if isMobile then
+        Content.Size = UDim2.new(1, -40, 1, -70)
+        Content.Position = UDim2.new(0, 20, 0, 70)
+    else
+        Content.Size = UDim2.new(1, -40, 1, -90)
+        Content.Position = UDim2.new(0, 20, 0, 80)
+    end
     Content.BackgroundTransparency = 1
     Content.Parent = MainFrame
     
     local Layout = Instance.new("UIListLayout")
     Layout.Parent = Content
-    Layout.Padding = UDim.new(0, 10)
+    Layout.Padding = UDim.new(0, isMobile and 8 or 10)
     Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     
     local ProviderSection = Instance.new("Frame")
-    ProviderSection.Size = UDim2.new(1, 0, 0, 80)
+    ProviderSection.Size = UDim2.new(1, 0, 0, isMobile and 70 or 80)
     ProviderSection.BackgroundTransparency = 1
     ProviderSection.Parent = Content
     
     local ProviderLabel = Instance.new("TextLabel")
-    ProviderLabel.Size = UDim2.new(1, 0, 0, 25)
+    ProviderLabel.Size = UDim2.new(1, 0, 0, isMobile and 20 or 25)
     ProviderLabel.BackgroundTransparency = 1
     ProviderLabel.Text = "SELECT KEY PROVIDER"
     ProviderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     ProviderLabel.Font = Enum.Font.SourceSansBold
-    ProviderLabel.TextSize = 16
+    ProviderLabel.TextSize = isMobile and 12 or 16
     ProviderLabel.Parent = ProviderSection
     
     local ProviderButtons = Instance.new("Frame")
-    ProviderButtons.Size = UDim2.new(1, 0, 0, 50)
-    ProviderButtons.Position = UDim2.new(0, 0, 0, 25)
+    ProviderButtons.Size = UDim2.new(1, 0, 0, isMobile and 45 or 50)
+    if isMobile then
+        ProviderButtons.Position = UDim2.new(0, 0, 0, 20)
+    else
+        ProviderButtons.Position = UDim2.new(0, 0, 0, 25)
+    end
     ProviderButtons.BackgroundTransparency = 1
     ProviderButtons.Parent = ProviderSection
     
@@ -506,7 +523,7 @@ local function CreateLoginPanel()
     WorkInkBtn.Text = "WORK.INK"
     WorkInkBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     WorkInkBtn.Font = Enum.Font.SourceSansBold
-    WorkInkBtn.TextSize = 14
+    WorkInkBtn.TextSize = isMobile and 10 or 14
     WorkInkBtn.Parent = ProviderButtons
     
     local WorkInkCorner = Instance.new("UICorner")
@@ -520,7 +537,7 @@ local function CreateLoginPanel()
     LinkvertiseBtn.Text = "LINKVERTISE"
     LinkvertiseBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     LinkvertiseBtn.Font = Enum.Font.SourceSansBold
-    LinkvertiseBtn.TextSize = 14
+    LinkvertiseBtn.TextSize = isMobile and 10 or 14
     LinkvertiseBtn.Parent = ProviderButtons
     
     local LinkvertiseCorner = Instance.new("UICorner")
@@ -528,29 +545,33 @@ local function CreateLoginPanel()
     LinkvertiseCorner.Parent = LinkvertiseBtn
     
     local KeySection = Instance.new("Frame")
-    KeySection.Size = UDim2.new(1, 0, 0, 80)
+    KeySection.Size = UDim2.new(1, 0, 0, isMobile and 70 or 80)
     KeySection.BackgroundTransparency = 1
     KeySection.Parent = Content
     
     local KeyLabel = Instance.new("TextLabel")
-    KeyLabel.Size = UDim2.new(1, 0, 0, 25)
+    KeyLabel.Size = UDim2.new(1, 0, 0, isMobile and 20 or 25)
     KeyLabel.BackgroundTransparency = 1
     KeyLabel.Text = "ENTER YOUR KEY:"
     KeyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     KeyLabel.Font = Enum.Font.SourceSansBold
-    KeyLabel.TextSize = 16
+    KeyLabel.TextSize = isMobile and 12 or 16
     KeyLabel.Parent = KeySection
     
     local KeyBox = Instance.new("TextBox")
-    KeyBox.Size = UDim2.new(1, 0, 0, 45)
-    KeyBox.Position = UDim2.new(0, 0, 0, 25)
+    KeyBox.Size = UDim2.new(1, 0, 0, isMobile and 40 or 45)
+    if isMobile then
+        KeyBox.Position = UDim2.new(0, 0, 0, 20)
+    else
+        KeyBox.Position = UDim2.new(0, 0, 0, 25)
+    end
     KeyBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     KeyBox.PlaceholderText = "Paste your key here..."
     KeyBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
     KeyBox.Text = ""
     KeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     KeyBox.Font = Enum.Font.SourceSans
-    KeyBox.TextSize = 16
+    KeyBox.TextSize = isMobile and 12 or 16
     KeyBox.Parent = KeySection
     
     local KeyBoxCorner = Instance.new("UICorner")
@@ -563,12 +584,12 @@ local function CreateLoginPanel()
     KeyBoxStroke.Parent = KeyBox
     
     local AuthBtn = Instance.new("TextButton")
-    AuthBtn.Size = UDim2.new(1, 0, 0, 50)
+    AuthBtn.Size = UDim2.new(1, 0, 0, isMobile and 45 or 50)
     AuthBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     AuthBtn.Text = "AUTHENTICATE"
     AuthBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     AuthBtn.Font = Enum.Font.SourceSansBold
-    AuthBtn.TextSize = 18
+    AuthBtn.TextSize = isMobile and 14 or 18
     AuthBtn.Parent = Content
     
     local AuthCorner = Instance.new("UICorner")
@@ -576,7 +597,7 @@ local function CreateLoginPanel()
     AuthCorner.Parent = AuthBtn
     
     local LinksSection = Instance.new("Frame")
-    LinksSection.Size = UDim2.new(1, 0, 0, 50)
+    LinksSection.Size = UDim2.new(1, 0, 0, isMobile and 45 or 50)
     LinksSection.BackgroundTransparency = 1
     LinksSection.Parent = Content
     
@@ -587,7 +608,7 @@ local function CreateLoginPanel()
     SiteBtn.Text = "SITE"
     SiteBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     SiteBtn.Font = Enum.Font.SourceSansBold
-    SiteBtn.TextSize = 14
+    SiteBtn.TextSize = isMobile and 10 or 14
     SiteBtn.Parent = LinksSection
     
     local SiteCorner = Instance.new("UICorner")
@@ -601,7 +622,7 @@ local function CreateLoginPanel()
     DiscordBtn.Text = "DISCORD"
     DiscordBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
     DiscordBtn.Font = Enum.Font.SourceSansBold
-    DiscordBtn.TextSize = 14
+    DiscordBtn.TextSize = isMobile and 10 or 14
     DiscordBtn.Parent = LinksSection
     
     local DiscordCorner = Instance.new("UICorner")
@@ -609,21 +630,32 @@ local function CreateLoginPanel()
     DiscordCorner.Parent = DiscordBtn
     
     local StatusLabel = Instance.new("TextLabel")
-    StatusLabel.Size = UDim2.new(1, 0, 0, 25)
+    StatusLabel.Size = UDim2.new(1, 0, 0, isMobile and 20 or 25)
     StatusLabel.BackgroundTransparency = 1
     StatusLabel.Text = "STATUS: NOT READY"
     StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
     StatusLabel.Font = Enum.Font.SourceSansBold
-    StatusLabel.TextSize = 14
+    StatusLabel.TextSize = isMobile and 10 or 14
     StatusLabel.Parent = Content
     
+    local DeviceLabel = Instance.new("TextLabel")
+    DeviceLabel.Size = UDim2.new(1, 0, 0, isMobile and 15 or 20)
+    DeviceLabel.BackgroundTransparency = 1
+    DeviceLabel.Text = isMobile and "📱 MOBILE DETECTED" or "💻 PC DETECTED"
+    DeviceLabel.TextColor3 = Color3.fromRGB(150, 150, 255)
+    DeviceLabel.Font = Enum.Font.SourceSans
+    DeviceLabel.TextSize = isMobile and 8 or 12
+    DeviceLabel.Parent = Content
+    
     local function SetupButton(btn, defaultColor, hoverColor)
-        btn.MouseEnter:Connect(function()
-            btn.BackgroundColor3 = hoverColor
-        end)
-        btn.MouseLeave:Connect(function()
-            btn.BackgroundColor3 = defaultColor
-        end)
+        if not isMobile then
+            btn.MouseEnter:Connect(function()
+                btn.BackgroundColor3 = hoverColor
+            end)
+            btn.MouseLeave:Connect(function()
+                btn.BackgroundColor3 = defaultColor
+            end)
+        end
     end
     
     SetupButton(WorkInkBtn, Color3.fromRGB(30, 30, 30), Color3.fromRGB(40, 40, 40))
@@ -733,104 +765,49 @@ local function CreateLoginPanel()
     end
 end
 
+-- FUNÇÃO PRINCIPAL DO PAINEL COM RESPONSIVIDADE COMPLETA
 function StartV3NENOHUB()
     local StartTime = os.time()
     local ToggleKey = Enum.KeyCode.LeftControl
 
-    -- DETECTAR SE É MOBILE OU PC
-    local isMobile = UserInputService and UserInputService.TouchEnabled
-    local isDesktop = not isMobile
+    local isMobile = IsMobileDevice()
+    local isDesktop = IsPCDevice()
     
-    if isMobile then
-        print("📱 V3NENO HUB: Dispositivo Mobile detectado")
-    else
-        print("💻 V3NENO HUB: Dispositivo Desktop detectado")
-    end
-
-    -- Inicializar variáveis do aimbot
-    local aimbotConnection = SetupAimbotLoop(ScreenGui, Notify)
+    local screenSize = Camera.ViewportSize
 
     local ESP_Body_Enabled = false
     local ESP_Names_Enabled = false
     local ESP_Distance_Enabled = false
     local ESP_Life_Enabled = false
     
-    local AntiLasso_Enabled = false
-    local AntiBreakFree_Enabled = false
-    local AntiLasso_Connection = nil
-    local AntiBreakFree_Connection = nil
-    
     local AnimalESP_Enabled = false
     local AnimalESP_Names_Enabled = false
     local AnimalESP_Distance_Enabled = false
 
     local ESPStorage = { Players = {} }
-    local ActiveConnections = {aimbotConnection}
+    local ActiveConnections = {}
     
     local OverpowerGunsEnabled = false
     local OriginalGunStats = nil
-    local FastFireEnabled = false
-    local FastEquipReloadEnabled = false
-    local NoRecoilEnabled = false
-
-    local AntiFallDamageEnabled = false
 
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "V3NENO_HUB_MAIN"
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.Parent = game.CoreGui or LocalPlayer.PlayerGui
 
+    -- Adicionar escala responsiva
+    local UIScale = CreateResponsiveUIScale()
+    UIScale.Parent = ScreenGui
+
+    -- Inicializar aimbot
+    local aimbotConnection = SetupAimbotLoop()
+    table.insert(ActiveConnections, aimbotConnection)
+
     local function AddCorner(parent, radius)
         local Corner = Instance.new("UICorner")
         Corner.CornerRadius = radius or UDim.new(0, 8)
         Corner.Parent = parent
         return Corner
-    end
-
-    local NotificationQueue = {}
-    local ShowingNotification = false
-
-    local function Notify(text)
-        table.insert(NotificationQueue, text:upper())
-        if not ShowingNotification then
-            ShowingNotification = true
-            local function ShowNext()
-                if #NotificationQueue == 0 then
-                    ShowingNotification = false
-                    return
-                end
-                local text = table.remove(NotificationQueue, 1)
-                local NotifyFrame = Instance.new("Frame")
-                NotifyFrame.Size = UDim2.new(0, 250, 0, 45)
-                NotifyFrame.Position = UDim2.new(0.5, -125, 1, 10)
-                NotifyFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-                NotifyFrame.Parent = ScreenGui
-                NotifyFrame.ZIndex = 100
-                AddCorner(NotifyFrame)
-                
-                local Stroke = Instance.new("UIStroke")
-                Stroke.Color = Color3.fromRGB(255, 0, 0)
-                Stroke.Thickness = 2
-                Stroke.Parent = NotifyFrame
-                
-                local Lab = Instance.new("TextLabel")
-                Lab.Size = UDim2.new(1, 0, 1, 0)
-                Lab.BackgroundTransparency = 1
-                Lab.Text = text
-                Lab.TextColor3 = Color3.fromRGB(255, 255, 255)
-                Lab.Font = Enum.Font.SourceSansBold
-                Lab.TextSize = 14
-                Lab.Parent = NotifyFrame
-                
-                NotifyFrame.Position = UDim2.new(0.5, -125, 0.85, 0)
-                task.delay(1.5, function()
-                    NotifyFrame:Destroy()
-                    task.wait(0.1)
-                    ShowNext()
-                end)
-            end
-            ShowNext()
-        end
     end
 
     local function GetPlayerColor(player)
@@ -1250,7 +1227,6 @@ function StartV3NENOHUB()
                     end
                 end
             end)
-            Notify("ANIMAL ESP BODY ENABLED")
         else
             local folder = Workspace:FindFirstChild("Animals")
             if folder then
@@ -1260,7 +1236,6 @@ function StartV3NENOHUB()
                     end
                 end
             end
-            Notify("ANIMAL ESP BODY DISABLED")
         end
     end
 
@@ -1319,7 +1294,6 @@ function StartV3NENOHUB()
                     end
                 end
             end)
-            Notify("ANIMAL NAMES ENABLED")
         else
             local folder = Workspace:FindFirstChild("Animals")
             if folder then
@@ -1333,7 +1307,6 @@ function StartV3NENOHUB()
                     end
                 end
             end
-            Notify("ANIMAL NAMES DISABLED")
         end
     end
 
@@ -1396,7 +1369,6 @@ function StartV3NENOHUB()
                     end
                 end
             end)
-            Notify("ANIMAL DISTANCE ENABLED")
         else
             local folder = Workspace:FindFirstChild("Animals")
             if folder then
@@ -1410,19 +1382,16 @@ function StartV3NENOHUB()
                     end
                 end
             end
-            Notify("ANIMAL DISTANCE DISABLED")
         end
     end
 
     local function ApplyOverpowerGuns()
         if not ReplicatedStorage:FindFirstChild("GunScripts") then
-            Notify("ERROR: GunScripts not found!")
             return false
         end
         
         local gunStats = ReplicatedStorage.GunScripts:FindFirstChild("GunStats")
         if not gunStats then
-            Notify("ERROR: GunStats not found!")
             return false
         end
         
@@ -1431,7 +1400,6 @@ function StartV3NENOHUB()
         end)
         
         if not success or type(v1) ~= "table" then
-            Notify("ERROR: Failed to load gun stats!")
             return false
         end
         
@@ -1500,14 +1468,11 @@ function StartV3NENOHUB()
         v1["Ice Mosin"] = v1["Mosin-Nagant"]
         v1["Maple Bow"] = v1.Bow
         
-        Notify("OVER POWER GUNS MOD ENABLED!")
-        Notify("ULTRA FAST + INSTANT EQUIP + NO RECOIL!")
         return true
     end
 
     local function RestoreOriginalGuns()
         if not OriginalGunStats or not ReplicatedStorage:FindFirstChild("GunScripts") then
-            Notify("Cannot restore original gun stats")
             return false
         end
         
@@ -1530,7 +1495,6 @@ function StartV3NENOHUB()
             end
         end
         
-        Notify("OVER POWER GUNS MOD DISABLED")
         return true
     end
 
@@ -1538,144 +1502,137 @@ function StartV3NENOHUB()
         OverpowerGunsEnabled = enabled
         if enabled then
             local success = ApplyOverpowerGuns()
-            if not success then
-                OverpowerGunsEnabled = false
-            end
         else
             RestoreOriginalGuns()
         end
     end
 
     local MainFrame = nil
-    local mobileFloatingButton = nil
+    local MobileMinimizeButton = nil
 
     local function CreateMobileMinimizeButton()
-        if mobileFloatingButton then
-            mobileFloatingButton:Destroy()
-            mobileFloatingButton = nil
+        if MobileMinimizeButton then
+            MobileMinimizeButton:Destroy()
+            MobileMinimizeButton = nil
         end
         
-        mobileFloatingButton = Instance.new("TextButton")
-        mobileFloatingButton.Name = "MobileMinimizeButton"
-        mobileFloatingButton.Size = UDim2.new(0, 50, 0, 50)
-        mobileFloatingButton.Position = UDim2.new(0.9, 0, 0.1, 0)
-        mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        mobileFloatingButton.Text = "V"
-        mobileFloatingButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        mobileFloatingButton.Font = Enum.Font.SourceSansBold
-        mobileFloatingButton.TextSize = 24
-        mobileFloatingButton.ZIndex = 1000
-        mobileFloatingButton.Parent = ScreenGui
-        AddCorner(mobileFloatingButton, UDim.new(1, 0))
+        MobileMinimizeButton = Instance.new("TextButton")
+        MobileMinimizeButton.Name = "MobileMinimizeButton"
+        MobileMinimizeButton.Size = UDim2.new(0, 60, 0, 60)
+        MobileMinimizeButton.Position = UDim2.new(0.92, 0, 0.08, 0)
+        MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        MobileMinimizeButton.Text = "V"
+        MobileMinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        MobileMinimizeButton.Font = Enum.Font.SourceSansBold
+        MobileMinimizeButton.TextSize = 24
+        MobileMinimizeButton.ZIndex = 1000
+        MobileMinimizeButton.Parent = ScreenGui
+        AddCorner(MobileMinimizeButton, UDim.new(1, 0))
+        
+        local StatusLabel = Instance.new("TextLabel")
+        StatusLabel.Name = "StatusLabel"
+        StatusLabel.Size = UDim2.new(1, 0, 0.3, 0)
+        StatusLabel.Position = UDim2.new(0, 0, 0.7, 0)
+        StatusLabel.BackgroundTransparency = 1
+        StatusLabel.Text = "HIDE"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        StatusLabel.Font = Enum.Font.SourceSansBold
+        StatusLabel.TextSize = 10
+        StatusLabel.Parent = MobileMinimizeButton
         
         local dragging = false
         local dragInput, dragStart, startPos
         
-        mobileFloatingButton.InputBegan:Connect(function(input)
+        MobileMinimizeButton.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
                 dragStart = input.Position
-                startPos = mobileFloatingButton.Position
+                startPos = MobileMinimizeButton.Position
+                
+                MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
                 
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
+                        if MainFrame and MainFrame.Visible then
+                            MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+                        else
+                            MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                        end
                     end
                 end)
             end
         end)
         
-        mobileFloatingButton.InputChanged:Connect(function(input)
+        MobileMinimizeButton.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
                 dragInput = input
             end
         end)
         
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and (input == dragInput) then
-                local delta = input.Position - dragStart
-                mobileFloatingButton.Position = UDim2.new(
-                    startPos.X.Scale,
-                    startPos.X.Offset + delta.X,
-                    startPos.Y.Scale,
-                    startPos.Y.Offset + delta.Y
-                )
-            end
-        end)
+        if UserInputService then
+            UserInputService.InputChanged:Connect(function(input)
+                if dragging and (input == dragInput) then
+                    local delta = input.Position - dragStart
+                    local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - 60)
+                    local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - 60)
+                    MobileMinimizeButton.Position = UDim2.new(0, newX, 0, newY)
+                end
+            end)
+        end
         
-        mobileFloatingButton.MouseButton1Click:Connect(function()
+        MobileMinimizeButton.MouseButton1Click:Connect(function()
             if MainFrame and MainFrame.Visible then
                 MainFrame.Visible = false
-                mobileFloatingButton.Text = "V"
-                mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                Notify("PANEL MINIMIZED - CLICK 'V' TO RESTORE")
+                MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                StatusLabel.Text = "SHOW"
             else
                 if MainFrame then
                     MainFrame.Visible = true
                 end
-                mobileFloatingButton.Text = "V"
-                mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-                Notify("PANEL RESTORED")
+                MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+                StatusLabel.Text = "HIDE"
             end
         end)
         
-        mobileFloatingButton.MouseEnter:Connect(function()
-            if mobileFloatingButton then
-                if MainFrame and MainFrame.Visible then
-                    mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-                else
-                    mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-                end
-            end
-        end)
-        
-        mobileFloatingButton.MouseLeave:Connect(function()
-            if mobileFloatingButton then
-                if MainFrame and MainFrame.Visible then
-                    mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-                else
-                    mobileFloatingButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                end
-            end
-        end)
-        
-        Notify("MOBILE MINIMIZE BUTTON CREATED - DRAGGABLE")
+        return MobileMinimizeButton
     end
 
     local function ToggleAntiFallDamage(enabled)
-        AntiFallDamageEnabled = enabled
-        
-        if enabled then
-            Notify("LOADING ANTI FALL DAMAGE...")
+        local Player = game.Players.LocalPlayer
+        local Character = Player.Character or Player.CharacterAdded:Wait()
+
+        local oldNC
+        oldNC = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
             
-            local Player = game.Players.LocalPlayer
-            local Character = Player.Character or Player.CharacterAdded:Wait()
-
-            local oldNC
-            oldNC = hookmetamethod(game, "__namecall", function(self, ...)
-                local method = getnamecallmethod()
-                local args = {...}
-                
-                if method == "FireServer" and self.Name == "ChangeCharacter" and args[1] == "Damage" then
-                    args[2] = 0 
-                    return oldNC(self, unpack(args))
-                end
-                
-                return oldNC(self, ...)
-            end)
-
-            Notify("ANTI-FALL DAMAGE ACTIVATED SUCCESSFULLY!")
-        else
-            Notify("ANTI FALL DAMAGE DISABLED")
-        end
+            if method == "FireServer" and self.Name == "ChangeCharacter" and args[1] == "Damage" then
+                args[2] = 0 
+                return oldNC(self, unpack(args))
+            end
+            
+            return oldNC(self, ...)
+        end)
     end
 
+    -- CRIAR PAINEL PRINCIPAL COM DIMENSÕES RESPONSIVAS
     MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
     MainFrame.Parent = ScreenGui
     MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
-    MainFrame.Position = UDim2.new(0.3, 0, 0.25, 0)
-    MainFrame.Size = UDim2.new(0, 600, 0, 400)
+    
+    if isMobile then
+        -- Dimensões responsivas para mobile
+        local width = math.min(380, screenSize.X * 0.95)
+        local height = math.min(420, screenSize.Y * 0.85)
+        MainFrame.Size = UDim2.new(0, width, 0, height)
+        MainFrame.Position = UDim2.new(0.5, -width/2, 0.5, -height/2)
+    else
+        MainFrame.Size = UDim2.new(0, 600, 0, 400)
+        MainFrame.Position = UDim2.new(0.3, 0, 0.25, 0)
+    end
+    
     MainFrame.Active = true
     MainFrame.Draggable = true
     AddCorner(MainFrame, UDim.new(0, 10))
@@ -1689,29 +1646,51 @@ function StartV3NENOHUB()
     Title.Parent = MainFrame
     Title.Text = "V3NENO HUB - WESTBOUND"
     Title.TextColor3 = Color3.fromRGB(255, 0, 0)
-    Title.TextSize = 16
+    if isMobile then
+        Title.TextSize = 14
+        Title.Position = UDim2.new(0.05, 0, 0, 8)
+        Title.Size = UDim2.new(0.5, 0, 0, 25)
+    else
+        Title.TextSize = 16
+        Title.Position = UDim2.new(0.05, 0, 0, 10)
+        Title.Size = UDim2.new(0.6, 0, 0, 30)
+    end
     Title.Font = Enum.Font.SourceSansBold
-    Title.Position = UDim2.new(0, 20, 0, 10)
-    Title.Size = UDim2.new(0, 350, 0, 30)
     Title.BackgroundTransparency = 1
     Title.TextXAlignment = Enum.TextXAlignment.Left
 
+    local TimerContainer = Instance.new("Frame")
+    TimerContainer.Parent = MainFrame
+    if isMobile then
+        TimerContainer.Size = UDim2.new(0, 80, 0, 22)
+        TimerContainer.Position = UDim2.new(0.7, 0, 0.02, 0)
+    else
+        TimerContainer.Size = UDim2.new(0, 90, 0, 24)
+        TimerContainer.Position = UDim2.new(0.75, 0, 0.02, 0)
+    end
+    TimerContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    TimerContainer.BackgroundTransparency = 0.5
+    AddCorner(TimerContainer, UDim.new(0, 4))
+
     local TimerLabel = Instance.new("TextLabel")
-    TimerLabel.Parent = MainFrame
-    TimerLabel.Size = UDim2.new(0, 120, 0, 20)
-    TimerLabel.Position = UDim2.new(0.72, 0, 0.04, 0)
+    TimerLabel.Parent = TimerContainer
+    TimerLabel.Size = UDim2.new(1, 0, 1, 0)
     TimerLabel.BackgroundTransparency = 1
-    TimerLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    TimerLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
     TimerLabel.Font = Enum.Font.Code
-    TimerLabel.TextSize = 12
-    TimerLabel.TextXAlignment = Enum.TextXAlignment.Right
+    if isMobile then
+        TimerLabel.TextSize = 10
+    else
+        TimerLabel.TextSize = 11
+    end
+    TimerLabel.Text = "00:00:00"
 
     local timerConnection = RunService.RenderStepped:Connect(function()
         local seconds = os.time() - StartTime
         local h = math.floor(seconds / 3600)
         local m = math.floor((seconds % 3600) / 60)
         local s = seconds % 60
-        TimerLabel.Text = string.format("Online: %02d:%02d:%02d", h, m, s)
+        TimerLabel.Text = string.format("%02d:%02d:%02d", h, m, s)
     end)
     table.insert(ActiveConnections, timerConnection)
 
@@ -1719,19 +1698,32 @@ function StartV3NENOHUB()
     SideBar.Parent = MainFrame
     SideBar.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
     SideBar.Position = UDim2.new(0.02, 0, 0.15, 0)
-    SideBar.Size = UDim2.new(0, 140, 0, 255)
+    if isMobile then
+        SideBar.Size = UDim2.new(0.25, 0, 0, 260)
+    else
+        SideBar.Size = UDim2.new(0, 140, 0, 255)
+    end
     AddCorner(SideBar)
 
     local SideLayout = Instance.new("UIListLayout")
     SideLayout.Parent = SideBar
-    SideLayout.Padding = UDim.new(0, 2)
+    if isMobile then
+        SideLayout.Padding = UDim.new(0, 1)
+    else
+        SideLayout.Padding = UDim.new(0, 2)
+    end
     SideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
     local ContentHolder = Instance.new("Frame")
     ContentHolder.Parent = MainFrame
     ContentHolder.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
-    ContentHolder.Position = UDim2.new(0.28, 0, 0.15, 0)
-    ContentHolder.Size = UDim2.new(0, 410, 0, 325)
+    if isMobile then
+        ContentHolder.Position = UDim2.new(0.28, 0, 0.15, 0)
+        ContentHolder.Size = UDim2.new(0.68, 0, 0, 260)
+    else
+        ContentHolder.Position = UDim2.new(0.28, 0, 0.15, 0)
+        ContentHolder.Size = UDim2.new(0, 410, 0, 325)
+    end
     AddCorner(ContentHolder)
 
     local Pages = {}
@@ -1742,14 +1734,22 @@ function StartV3NENOHUB()
         Page.Size = UDim2.new(1, 0, 1, 0)
         Page.BackgroundTransparency = 1
         Page.Visible = false
-        Page.ScrollBarThickness = 3
+        if isMobile then
+            Page.ScrollBarThickness = 2
+        else
+            Page.ScrollBarThickness = 3
+        end
         Page.CanvasSize = UDim2.new(0, 0, 0, 0)
         Page.ScrollingDirection = Enum.ScrollingDirection.Y
         Page.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
         
         local List = Instance.new("UIListLayout")
         List.Parent = Page
-        List.Padding = UDim.new(0, 10)
+        if isMobile then
+            List.Padding = UDim.new(0, 8)
+        else
+            List.Padding = UDim.new(0, 10)
+        end
         List.HorizontalAlignment = Enum.HorizontalAlignment.Center
         List.SortOrder = Enum.SortOrder.LayoutOrder
         
@@ -1772,7 +1772,11 @@ function StartV3NENOHUB()
 
     local function CreateSection(page, text)
         local Frame = Instance.new("Frame")
-        Frame.Size = UDim2.new(0.95, 0, 0, 28)
+        if isMobile then
+            Frame.Size = UDim2.new(0.95, 0, 0, 24)
+        else
+            Frame.Size = UDim2.new(0.95, 0, 0, 28)
+        end
         Frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Frame.Parent = page
         Frame.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
@@ -1784,7 +1788,11 @@ function StartV3NENOHUB()
         Lab.Text = text:upper()
         Lab.TextColor3 = Color3.fromRGB(255, 255, 255)
         Lab.Font = Enum.Font.SourceSansBold
-        Lab.TextSize = 13
+        if isMobile then
+            Lab.TextSize = 11
+        else
+            Lab.TextSize = 13
+        end
         Lab.Parent = Frame
         
         return Frame
@@ -1792,26 +1800,47 @@ function StartV3NENOHUB()
 
     local function NewButton(page, text, callback)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0.9, 0, 0, 42)
+        if isMobile then
+            btn.Size = UDim2.new(0.9, 0, 0, 38)
+            btn.TextSize = 12
+        else
+            btn.Size = UDim2.new(0.9, 0, 0, 42)
+            btn.TextSize = 14
+        end
         btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         btn.Text = text
         btn.TextColor3 = Color3.fromRGB(255, 0, 0)
         btn.Font = Enum.Font.SourceSansBold
-        btn.TextSize = 14
         btn.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         btn.Parent = page
         AddCorner(btn)
         
-        btn.MouseButton1Click:Connect(function()
+        local function onButtonActivated()
             pcall(callback)
-        end)
+        end
+        
+        btn.MouseButton1Click:Connect(onButtonActivated)
+        
+        if not isMobile then
+            btn.MouseEnter:Connect(function()
+                btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            end)
+            
+            btn.MouseLeave:Connect(function()
+                btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            end)
+        end
         
         return btn
     end
 
     local function NewSwitch(page, text, callback)
         local Bg = Instance.new("Frame")
-        Bg.Size = UDim2.new(0.9, 0, 0, 42)
+        if isMobile then
+            Bg.Size = UDim2.new(0.9, 0, 0, 38)
+        else
+            Bg.Size = UDim2.new(0.9, 0, 0, 42)
+        end
         Bg.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         Bg.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         Bg.Parent = page
@@ -1824,47 +1853,80 @@ function StartV3NENOHUB()
         Lbl.Position = UDim2.new(0.05, 0, 0, 0)
         Lbl.Size = UDim2.new(0.6, 0, 1, 0)
         Lbl.BackgroundTransparency = 1
-        Lbl.TextSize = 13
+        if isMobile then
+            Lbl.TextSize = 11
+        else
+            Lbl.TextSize = 13
+        end
         
         local Tgl = Instance.new("TextButton")
         Tgl.Parent = Bg
-        Tgl.Size = UDim2.new(0, 45, 0, 22)
-        Tgl.Position = UDim2.new(0.82, 0, 0.24, 0)
+        if isMobile then
+            Tgl.Size = UDim2.new(0, 35, 0, 18)
+            Tgl.Position = UDim2.new(0.8, 0, 0.3, 0)
+        else
+            Tgl.Size = UDim2.new(0, 45, 0, 22)
+            Tgl.Position = UDim2.new(0.82, 0, 0.24, 0)
+        end
         Tgl.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
         Tgl.Text = ""
         AddCorner(Tgl, UDim.new(1, 0))
         
         local Circ = Instance.new("Frame")
         Circ.Parent = Tgl
-        Circ.Size = UDim2.new(0, 18, 0, 18)
-        Circ.Position = UDim2.new(0.05, 0, 0.09, 0)
+        if isMobile then
+            Circ.Size = UDim2.new(0, 14, 0, 14)
+            Circ.Position = UDim2.new(0.05, 0, 0.1, 0)
+        else
+            Circ.Size = UDim2.new(0, 18, 0, 18)
+            Circ.Position = UDim2.new(0.05, 0, 0.09, 0)
+        end
         Circ.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         AddCorner(Circ, UDim.new(1, 0))
         
         local act = false
-        Tgl.MouseButton1Click:Connect(function()
+        
+        local function toggleSwitch()
             act = not act
             if TweenService then
                 if act then
-                    TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.52, 0, 0.09, 0)}):Play()
+                    if isMobile then
+                        TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.52, 0, 0.1, 0)}):Play()
+                    else
+                        TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.52, 0, 0.09, 0)}):Play()
+                    end
                     TweenService:Create(Tgl, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 0, 0)}):Play()
                 else
-                    TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.05, 0, 0.09, 0)}):Play()
+                    if isMobile then
+                        TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.05, 0, 0.1, 0)}):Play()
+                    else
+                        TweenService:Create(Circ, TweenInfo.new(0.2), {Position = UDim2.new(0.05, 0, 0.09, 0)}):Play()
+                    end
                     TweenService:Create(Tgl, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
                 end
             else
-                Circ.Position = act and UDim2.new(0.52, 0, 0.09, 0) or UDim2.new(0.05, 0, 0.09, 0)
+                if isMobile then
+                    Circ.Position = act and UDim2.new(0.52, 0, 0.1, 0) or UDim2.new(0.05, 0, 0.1, 0)
+                else
+                    Circ.Position = act and UDim2.new(0.52, 0, 0.09, 0) or UDim2.new(0.05, 0, 0.09, 0)
+                end
                 Tgl.BackgroundColor3 = act and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(50, 50, 50)
             end
             pcall(callback, act)
-        end)
+        end
+        
+        Tgl.MouseButton1Click:Connect(toggleSwitch)
         
         return {Bg = Bg, Label = Lbl, Toggle = Tgl, Circle = Circ, State = false}
     end
 
     local function NewKeybind(page, text, default, callback)
         local Bg = Instance.new("Frame")
-        Bg.Size = UDim2.new(0.9, 0, 0, 42)
+        if isMobile then
+            Bg.Size = UDim2.new(0.9, 0, 0, 38)
+        else
+            Bg.Size = UDim2.new(0.9, 0, 0, 42)
+        end
         Bg.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         Bg.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         Bg.Parent = page
@@ -1877,20 +1939,30 @@ function StartV3NENOHUB()
         Lbl.Position = UDim2.new(0.05, 0, 0, 0)
         Lbl.Size = UDim2.new(0.6, 0, 1, 0)
         Lbl.BackgroundTransparency = 1
-        Lbl.TextSize = 13
+        if isMobile then
+            Lbl.TextSize = 11
+        else
+            Lbl.TextSize = 13
+        end
         
         local BindBtn = Instance.new("TextButton")
         BindBtn.Parent = Bg
-        BindBtn.Size = UDim2.new(0, 85, 0, 26)
-        BindBtn.Position = UDim2.new(0.72, 0, 0.19, 0)
+        if isMobile then
+            BindBtn.Size = UDim2.new(0, 60, 0, 22)
+            BindBtn.Position = UDim2.new(0.72, 0, 0.26, 0)
+            BindBtn.TextSize = 11
+        else
+            BindBtn.Size = UDim2.new(0, 85, 0, 26)
+            BindBtn.Position = UDim2.new(0.72, 0, 0.19, 0)
+            BindBtn.TextSize = 13
+        end
         BindBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
         BindBtn.Text = default.Name
         BindBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
         BindBtn.Font = Enum.Font.SourceSansBold
-        BindBtn.TextSize = 13
         AddCorner(BindBtn)
         
-        BindBtn.MouseButton1Click:Connect(function()
+        local function onBindClick()
             BindBtn.Text = "..."
             local connection
             connection = UserInputService.InputBegan:Connect(function(input)
@@ -1900,14 +1972,20 @@ function StartV3NENOHUB()
                     connection:Disconnect()
                 end
             end)
-        end)
+        end
+        
+        BindBtn.MouseButton1Click:Connect(onBindClick)
         
         return BindBtn
     end
 
     local function NewSlider(page, text, min, max, default, callback)
         local Bg = Instance.new("Frame")
-        Bg.Size = UDim2.new(0.9, 0, 0, 55)
+        if isMobile then
+            Bg.Size = UDim2.new(0.9, 0, 0, 50)
+        else
+            Bg.Size = UDim2.new(0.9, 0, 0, 55)
+        end
         Bg.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         Bg.LayoutOrder = page:GetChildren() and #page:GetChildren() or 0
         Bg.Parent = page
@@ -1920,7 +1998,11 @@ function StartV3NENOHUB()
         Lbl.Position = UDim2.new(0, 0, 0, 5)
         Lbl.Size = UDim2.new(1, 0, 0, 20)
         Lbl.BackgroundTransparency = 1
-        Lbl.TextSize = 13
+        if isMobile then
+            Lbl.TextSize = 11
+        else
+            Lbl.TextSize = 13
+        end
         
         local SliderBar = Instance.new("TextButton")
         SliderBar.Parent = Bg
@@ -1936,14 +2018,33 @@ function StartV3NENOHUB()
         Fill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         AddCorner(Fill)
         
+        local function updateSlider(input)
+            local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+            Fill.Size = UDim2.new(pos, 0, 1, 0)
+            local val = math.floor(min + (max - min) * pos)
+            Lbl.Text = text .. ": " .. val
+            pcall(callback, val)
+        end
+        
+        if isMobile and UserInputService then
+            SliderBar.TouchStarted:Connect(function()
+                local moveConnection
+                moveConnection = UserInputService.TouchMoved:Connect(function(input)
+                    updateSlider(input)
+                end)
+                
+                local endConnection
+                endConnection = UserInputService.TouchEnded:Connect(function()
+                    moveConnection:Disconnect()
+                    endConnection:Disconnect()
+                end)
+            end)
+        end
+        
         SliderBar.MouseButton1Down:Connect(function()
             local move = UserInputService.InputChanged:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseMovement then
-                    local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
-                    Fill.Size = UDim2.new(pos, 0, 1, 0)
-                    local val = math.floor(min + (max - min) * pos)
-                    Lbl.Text = text .. ": " .. val
-                    pcall(callback, val)
+                    updateSlider(input)
                 end
             end)
             
@@ -1969,49 +2070,28 @@ function StartV3NENOHUB()
     InfoText.Text = "[USE AT YOUR OWN RISK]"
     InfoText.TextColor3 = Color3.fromRGB(255, 50, 50)
     InfoText.Font = Enum.Font.SourceSansItalic
-    InfoText.TextSize = 12
+    if isMobile then
+        InfoText.TextSize = 10
+    else
+        InfoText.TextSize = 12
+    end
     InfoText.LayoutOrder = PVP_Page:GetChildren() and #PVP_Page:GetChildren() or 0
     InfoText.Parent = PVP_Page
 
-    NewSwitch(PVP_Page, "FAST FIRE", function(s)
-        FastFireEnabled = s
-        if s then 
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/main.lua/refs/heads/main/Fast%20Fire%20Westbound"))()
-            Notify("FAST FIRE ENABLED")
-        else
-            Notify("FAST FIRE DISABLED")
-        end
-    end)
-
-    NewSwitch(PVP_Page, "FAST EQUIP + RELOAD", function(s)
-        FastEquipReloadEnabled = s
-        if s then 
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/main.luaa/refs/heads/main/Fast%20Equip%20%2B%20Reload"))()
-            Notify("FAST EQUIP + RELOAD ENABLED")
-        else
-            Notify("FAST EQUIP + RELOAD DISABLED")
-        end
-    end)
-
-    NewSwitch(PVP_Page, "NO RECOIL", function(s)
-        NoRecoilEnabled = s
-        if s then 
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/main.luaaa/refs/heads/main/No%20recoil%20WestBound"))()
-            Notify("NO RECOIL ENABLED")
-        else
-            Notify("NO RECOIL DISABLED")
-        end
-    end)
-
     CreateSection(PVP_Page, "Aimbot Settings")
 
-    -- Configurar interface do aimbot usando a função que extraímos
-    SetupAimbotInInterface(PVP_Page, Notify, NewSwitch, NewKeybind, NewSlider)
+    SetupAimbotInInterface(PVP_Page, nil, NewSwitch, NewKeybind, NewSlider)
 
     CreateSection(PVP_Page, "Autofarm System")
 
     local FarmInfo = Instance.new("TextLabel")
-    FarmInfo.Size = UDim2.new(0.9, 0, 0, 130)
+    if isMobile then
+        FarmInfo.Size = UDim2.new(0.9, 0, 0, 100)
+        FarmInfo.TextSize = 10
+    else
+        FarmInfo.Size = UDim2.new(0.9, 0, 0, 130)
+        FarmInfo.TextSize = 12
+    end
     FarmInfo.BackgroundTransparency = 1
     FarmInfo.TextColor3 = Color3.fromRGB(160, 160, 160)
     FarmInfo.Text = [[
@@ -2020,50 +2100,45 @@ function StartV3NENOHUB()
 3. WALK AROUND ONCE IN YOUR GAME
 4. RESET YOUR CHARACTER
 5. IF IT DOESN'T WORK: LEAVE GAME & REPEAT 
-
-
-
-
-
-
-
-
-
-
-
-
 ]]
     FarmInfo.Font = Enum.Font.SourceSansBold
-    FarmInfo.TextSize = 12
     FarmInfo.TextWrapped = true
     FarmInfo.LayoutOrder = PVP_Page:GetChildren() and #PVP_Page:GetChildren() or 0
     FarmInfo.Parent = PVP_Page
 
-    NewButton(PVP_Page, "AUTO FARM MONEY", function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/WESTBOUND-AUTO-FARM-DINHEIRO-/refs/heads/main/WESTBOUND%20-%20AUTOFARM%20DINHEIRO"))()
-        Notify("AUTO FARM MONEY ACTIVATED")
-    end)
+    local AutoFarmBtn = Instance.new("TextButton")
+    if isMobile then
+        AutoFarmBtn.Size = UDim2.new(0.9, 0, 0, 38)
+        AutoFarmBtn.TextSize = 12
+    else
+        AutoFarmBtn.Size = UDim2.new(0.9, 0, 0, 42)
+        AutoFarmBtn.TextSize = 14
+    end
+    AutoFarmBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    AutoFarmBtn.Text = "PATCHED"
+    AutoFarmBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    AutoFarmBtn.Font = Enum.Font.SourceSansBold
+    AutoFarmBtn.LayoutOrder = PVP_Page:GetChildren() and #PVP_Page:GetChildren() or 0
+    AutoFarmBtn.Parent = PVP_Page
+    AutoFarmBtn.AutoButtonColor = false
+    AddCorner(AutoFarmBtn)
 
     CreateSection(VIS_Page, "ESP PLAYERS")
 
     NewSwitch(VIS_Page, "ESP BODY", function(s)
         ESP_Body_Enabled = s
-        Notify(s and "PLAYER ESP BODY ENABLED" or "PLAYER ESP BODY DISABLED")
     end)
 
     NewSwitch(VIS_Page, "PLAYER NAMES", function(s)
         ESP_Names_Enabled = s
-        Notify(s and "PLAYER NAMES ENABLED" or "PLAYER NAMES DISABLED")
     end)
 
     NewSwitch(VIS_Page, "DISTANCE INFO", function(s)
         ESP_Distance_Enabled = s
-        Notify(s and "DISTANCE INFO ENABLED" or "DISTANCE INFO DISABLED")
     end)
 
     NewSwitch(VIS_Page, "ESP LIFE PLAYER", function(s)
         ESP_Life_Enabled = s
-        Notify(s and "PLAYER LIFE ESP ENABLED" or "PLAYER LIFE ESP DISABLED")
     end)
 
     InitializeUniversalESP()
@@ -2087,30 +2162,20 @@ function StartV3NENOHUB()
     local function ToggleAntiLasso(enabled)
         if enabled then
             loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/anti-la-o-westbound/refs/heads/main/ANTI%20LA%C3%87O%20WEST%20BOUND"))()
-            AntiLasso_Enabled = true
-            Notify("ANTI LASSO ENABLED")
-        else
-            AntiLasso_Enabled = false
-            Notify("ANTI LASSO DISABLED")
         end
     end
 
     local function ToggleAntiBreakFree(enabled)
         if enabled then
             loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/anti-break-free-westbound/refs/heads/main/ANTI%20BREAK%20FREE%20WESTBOUND"))()
-            AntiBreakFree_Enabled = true
-            Notify("ANTI BREAK FREE ENABLED")
-        else
-            AntiBreakFree_Enabled = false
-            Notify("ANTI BREAK FREE DISABLED")
         end
     end
 
-    local AntiLassoSwitch = NewSwitch(MISC_Page, "ANTI LASSO", function(s)
+    NewSwitch(MISC_Page, "ANTI LASSO", function(s)
         ToggleAntiLasso(s)
     end)
 
-    local AntiBreakFreeSwitch = NewSwitch(MISC_Page, "ANTI BREAK FREE", function(s)
+    NewSwitch(MISC_Page, "ANTI BREAK FREE", function(s)
         ToggleAntiBreakFree(s)
     end)
 
@@ -2122,113 +2187,118 @@ function StartV3NENOHUB()
 
     NewButton(MISC_Page, "AURA ROB", function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/aurarobwestbound/refs/heads/main/aurarobwestbound"))()
-        Notify("AURA ROB ACTIVATED")
     end)
 
     CreateSection(MISC_Page, "MANSION FEATURES")
 
     local WarningText = Instance.new("TextLabel")
-    WarningText.Size = UDim2.new(0.9, 0, 0, 40)
+    if isMobile then
+        WarningText.Size = UDim2.new(0.9, 0, 0, 35)
+        WarningText.TextSize = 10
+    else
+        WarningText.Size = UDim2.new(0.9, 0, 0, 40)
+        WarningText.TextSize = 12
+    end
     WarningText.BackgroundTransparency = 1
     WarningText.Text = "[USE AT YOUR OWN RISK]\nAlways use in places near the mansion\nto avoid deaths and possible kicks"
     WarningText.TextColor3 = Color3.fromRGB(255, 50, 50)
     WarningText.Font = Enum.Font.SourceSansItalic
-    WarningText.TextSize = 12
     WarningText.TextWrapped = true
     WarningText.LayoutOrder = MISC_Page:GetChildren() and #MISC_Page:GetChildren() or 0
     WarningText.Parent = MISC_Page
 
     local AutoTPMansion_Enabled = false
-    local AutoTPMansion_Connection = nil
     
     local function ToggleAutoTPMansion(enabled)
         AutoTPMansion_Enabled = enabled
         
         if enabled then
-            Notify("LOADING AUTO TP MANSION...")
             loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/auto-tp-mansio-westbound/refs/heads/main/AUTO%20TP%20MANSIO%20WESTBOUND"))()
-            Notify("AUTO TP MANSION ENABLED!")
-        else
-            if AutoTPMansion_Connection then
-                AutoTPMansion_Connection:Disconnect()
-                AutoTPMansion_Connection = nil
-            end
-            Notify("AUTO TP MANSION DISABLED")
         end
     end
 
-    local AutoTPMansionSwitch = NewSwitch(MISC_Page, "AUTO TP MANSION", function(s)
+    NewSwitch(MISC_Page, "AUTO TP MANSION", function(s)
         ToggleAutoTPMansion(s)
     end)
 
     local ESPBestJewelry_Enabled = false
-    local ESPBestJewelry_Connection = nil
     
     local function ToggleESPBestJewelry(enabled)
         ESPBestJewelry_Enabled = enabled
         
         if enabled then
-            Notify("LOADING JEWELRY ESP...")
             loadstring(game:HttpGet("https://raw.githubusercontent.com/v3nenohub/ESP-JOIAS-WESTBOUND-MANSION/refs/heads/main/ESP%20JOIAS%20WESTBOUND%20MANSION"))()
-            Notify("JEWELRY ESP ENABLED!")
-        else
-            if ESPBestJewelry_Connection then
-                ESPBestJewelry_Connection:Disconnect()
-                ESPBestJewelry_Connection = nil
-            end
-            Notify("JEWELRY ESP DISABLED")
         end
     end
 
-    local ESPBestJewelrySwitch = NewSwitch(MISC_Page, "ESP BEST JEWELRY", function(s)
+    NewSwitch(MISC_Page, "ESP BEST JEWELRY", function(s)
         ToggleESPBestJewelry(s)
     end)
 
     CreateSection(SET_Page, "UI CONFIGURATION")
 
     local TipLabel = Instance.new("TextLabel")
-    TipLabel.Size = UDim2.new(0.9, 0, 0, 50)
+    if isMobile then
+        TipLabel.Size = UDim2.new(0.9, 0, 0, 45)
+        TipLabel.TextSize = 10
+    else
+        TipLabel.Size = UDim2.new(0.9, 0, 0, 50)
+        TipLabel.TextSize = 14
+    end
     TipLabel.BackgroundTransparency = 1
     TipLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     TipLabel.Text = "Default toggle key: Left Control\nPress to show/hide the panel"
     TipLabel.Font = Enum.Font.SourceSansItalic
-    TipLabel.TextSize = 14
     TipLabel.TextWrapped = true
     TipLabel.LayoutOrder = SET_Page:GetChildren() and #SET_Page:GetChildren() or 0
     TipLabel.Parent = SET_Page
 
     NewKeybind(SET_Page, "CHANGE TOGGLE KEY", ToggleKey, function(k)
         ToggleKey = k
-        Notify("TOGGLE KEY: " .. k.Name)
     end)
 
     CreateSection(SET_Page, "MOBILE FEATURES")
     
     NewSwitch(SET_Page, "MOBILE MINIMIZE PANEL", function(s)
-        if s then
-            CreateMobileMinimizeButton()
-            Notify("MOBILE MINIMIZE ENABLED")
+        if s and isMobile then
+            MobileMinimizeButton = CreateMobileMinimizeButton()
+            MobileMinimizeButton.MouseButton1Click:Connect(function()
+                MainFrame.Visible = not MainFrame.Visible
+                if MobileMinimizeButton then
+                    if MainFrame.Visible then
+                        MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+                        MobileMinimizeButton:FindFirstChild("StatusLabel").Text = "HIDE"
+                    else
+                        MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                        MobileMinimizeButton:FindFirstChild("StatusLabel").Text = "SHOW"
+                    end
+                end
+            end)
         else
-            if mobileFloatingButton then
-                mobileFloatingButton:Destroy()
-                mobileFloatingButton = nil
+            if MobileMinimizeButton then
+                MobileMinimizeButton:Destroy()
+                MobileMinimizeButton = nil
             end
             if MainFrame then
                 MainFrame.Visible = true
             end
-            Notify("MOBILE MINIMIZE DISABLED")
         end
     end)
 
     CreateSection(DC_Page, "COMMUNITY V3NENO HUB")
     
     local DiscordInfo = Instance.new("TextLabel")
-    DiscordInfo.Size = UDim2.new(0.9, 0, 0, 100)
+    if isMobile then
+        DiscordInfo.Size = UDim2.new(0.9, 0, 0, 80)
+        DiscordInfo.TextSize = 10
+    else
+        DiscordInfo.Size = UDim2.new(0.9, 0, 0, 100)
+        DiscordInfo.TextSize = 14
+    end
     DiscordInfo.BackgroundTransparency = 1
     DiscordInfo.TextColor3 = Color3.fromRGB(180, 180, 180)
     DiscordInfo.Text = "Join our global Roblox community! Everyone is welcome to be part of our family. Follow community rules, maintain friendly environment."
     DiscordInfo.Font = Enum.Font.SourceSansItalic
-    DiscordInfo.TextSize = 14
     DiscordInfo.TextWrapped = true
     DiscordInfo.LayoutOrder = DC_Page:GetChildren() and #DC_Page:GetChildren() or 0
     DiscordInfo.Parent = DC_Page
@@ -2236,19 +2306,23 @@ function StartV3NENOHUB()
     local DiscordBtn = NewButton(DC_Page, "COPY DISCORD LINK", function()
         pcall(function()
             setclipboard("https://discord.gg/3JSw8fDQbu")
-            Notify("DISCORD LINK COPIED!")
         end)
     end)
 
     CreateSection(SITE_Page, "COMMUNITY V3NENO HUB")
     
     local SiteInfo = Instance.new("TextLabel")
-    SiteInfo.Size = UDim2.new(0.9, 0, 0, 100)
+    if isMobile then
+        SiteInfo.Size = UDim2.new(0.9, 0, 0, 80)
+        SiteInfo.TextSize = 10
+    else
+        SiteInfo.Size = UDim2.new(0.9, 0, 0, 100)
+        SiteInfo.TextSize = 14
+    end
     SiteInfo.BackgroundTransparency = 1
     SiteInfo.TextColor3 = Color3.fromRGB(180, 180, 180)
     SiteInfo.Text = "Find direct links for scripts from various games, download best executors, get full access to official V3NENO HUB panel with all games integrated."
     SiteInfo.Font = Enum.Font.SourceSansItalic
-    SiteInfo.TextSize = 14
     SiteInfo.TextWrapped = true
     SiteInfo.LayoutOrder = SITE_Page:GetChildren() and #SITE_Page:GetChildren() or 0
     SiteInfo.Parent = SITE_Page
@@ -2256,45 +2330,63 @@ function StartV3NENOHUB()
     local SiteBtn = NewButton(SITE_Page, "COPY WEBSITE LINK", function()
         pcall(function()
             setclipboard("https://v3nenohub.lovable.app")
-            Notify("WEBSITE LINK COPIED!")
         end)
     end)
 
     CreateSection(CREDITS_Page, "CREDITS - V3NENO HUB PANEL")
 
     local CreditsHeader = Instance.new("TextLabel")
-    CreditsHeader.Size = UDim2.new(0.95, 0, 0, 50)
+    if isMobile then
+        CreditsHeader.Size = UDim2.new(0.95, 0, 0, 45)
+        CreditsHeader.TextSize = 18
+    else
+        CreditsHeader.Size = UDim2.new(0.95, 0, 0, 50)
+        CreditsHeader.TextSize = 20
+    end
     CreditsHeader.BackgroundTransparency = 1
     CreditsHeader.Text = "V3NENO HUB WESTBOUND PANEL"
     CreditsHeader.TextColor3 = Color3.fromRGB(255, 0, 0)
     CreditsHeader.Font = Enum.Font.SourceSansBold
-    CreditsHeader.TextSize = 20
     CreditsHeader.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
     CreditsHeader.Parent = CREDITS_Page
 
     local OwnerInfo = Instance.new("TextLabel")
-    OwnerInfo.Size = UDim2.new(0.95, 0, 0, 30)
+    if isMobile then
+        OwnerInfo.Size = UDim2.new(0.95, 0, 0, 25)
+        OwnerInfo.TextSize = 14
+    else
+        OwnerInfo.Size = UDim2.new(0.95, 0, 0, 30)
+        OwnerInfo.TextSize = 16
+    end
     OwnerInfo.BackgroundTransparency = 1
     OwnerInfo.Text = "OWNER & DEVELOPER: HENRIQSZ7"
     OwnerInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
     OwnerInfo.Font = Enum.Font.SourceSansBold
-    OwnerInfo.TextSize = 16
     OwnerInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
     OwnerInfo.Parent = CREDITS_Page
 
     local HubInfo = Instance.new("TextLabel")
-    HubInfo.Size = UDim2.new(0.95, 0, 0, 40)
+    if isMobile then
+        HubInfo.Size = UDim2.new(0.95, 0, 0, 35)
+        HubInfo.TextSize = 12
+    else
+        HubInfo.Size = UDim2.new(0.95, 0, 0, 40)
+        HubInfo.TextSize = 14
+    end
     HubInfo.BackgroundTransparency = 1
     HubInfo.Text = "OFFICIAL PANEL: V3NENO HUB\nVERSION: 3.0 WESTBOUND"
     HubInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
     HubInfo.Font = Enum.Font.SourceSans
-    HubInfo.TextSize = 14
     HubInfo.TextWrapped = true
     HubInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
     HubInfo.Parent = CREDITS_Page
 
     local ThanksFrame = Instance.new("Frame")
-    ThanksFrame.Size = UDim2.new(0.95, 0, 0, 80)
+    if isMobile then
+        ThanksFrame.Size = UDim2.new(0.95, 0, 0, 70)
+    else
+        ThanksFrame.Size = UDim2.new(0.95, 0, 0, 80)
+    end
     ThanksFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     ThanksFrame.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
     ThanksFrame.Parent = CREDITS_Page
@@ -2307,17 +2399,26 @@ function StartV3NENOHUB()
     ThanksLabel.Text = "THANKS FOR USING V3NENO HUB!\nSPECIAL THANKS TO OUR COMMUNITY\nAND ALL SUPPORTERS!"
     ThanksLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     ThanksLabel.Font = Enum.Font.SourceSansBold
-    ThanksLabel.TextSize = 12
+    if isMobile then
+        ThanksLabel.TextSize = 10
+    else
+        ThanksLabel.TextSize = 12
+    end
     ThanksLabel.TextWrapped = true
     ThanksLabel.Parent = ThanksFrame
 
     local ContactInfo = Instance.new("TextLabel")
-    ContactInfo.Size = UDim2.new(0.95, 0, 0, 60)
+    if isMobile then
+        ContactInfo.Size = UDim2.new(0.95, 0, 0, 50)
+        ContactInfo.TextSize = 12
+    else
+        ContactInfo.Size = UDim2.new(0.95, 0, 0, 60)
+        ContactInfo.TextSize = 14
+    end
     ContactInfo.BackgroundTransparency = 1
     ContactInfo.Text = "FOR SUPPORT AND UPDATES:\nJOIN OUR DISCORD SERVER\nVISIT OUR WEBSITE"
     ContactInfo.TextColor3 = Color3.fromRGB(150, 150, 255)
     ContactInfo.Font = Enum.Font.SourceSansBold
-    ContactInfo.TextSize = 14
     ContactInfo.TextWrapped = true
     ContactInfo.LayoutOrder = CREDITS_Page:GetChildren() and #CREDITS_Page:GetChildren() or 0
     ContactInfo.Parent = CREDITS_Page
@@ -2326,21 +2427,28 @@ function StartV3NENOHUB()
     local function CreateTabBtn(name, order)
         local btn = Instance.new("TextButton")
         btn.Parent = SideBar
-        btn.Size = UDim2.new(0.9, 0, 0, 36)
+        if isMobile then
+            btn.Size = UDim2.new(0.9, 0, 0, 32)
+            btn.TextSize = 11
+        else
+            btn.Size = UDim2.new(0.9, 0, 0, 36)
+            btn.TextSize = 13
+        end
         btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
         btn.Text = name
         btn.TextColor3 = Color3.fromRGB(200, 200, 200)
         btn.Font = Enum.Font.SourceSansBold
-        btn.TextSize = 13
         btn.LayoutOrder = order
         AddCorner(btn)
         
-        btn.MouseButton1Click:Connect(function()
+        local function onTabClick()
             for _, p in pairs(Pages) do p.Visible = false end
             Pages[name].Visible = true
             for _, button in pairs(TabButtons) do button.TextColor3 = Color3.fromRGB(200, 200, 200) end
             btn.TextColor3 = Color3.fromRGB(255, 0, 0)
-        end)
+        end
+        
+        btn.MouseButton1Click:Connect(onTabClick)
         
         TabButtons[name] = btn
         return btn
@@ -2358,19 +2466,31 @@ function StartV3NENOHUB()
     local UserFrame = Instance.new("Frame")
     UserFrame.Parent = MainFrame
     UserFrame.Position = UDim2.new(0.02, 0, 0.79, 0)
-    UserFrame.Size = UDim2.new(0, 140, 0, 70)
+    if isMobile then
+        UserFrame.Size = UDim2.new(0.25, 0, 0, 70)
+    else
+        UserFrame.Size = UDim2.new(0, 140, 0, 70)
+    end
     UserFrame.BackgroundTransparency = 1
 
     local AvatarBack = Instance.new("Frame")
-    AvatarBack.Size = UDim2.new(0, 48, 0, 48)
-    AvatarBack.Position = UDim2.new(0, 0, 0.5, -24)
+    if isMobile then
+        AvatarBack.Size = UDim2.new(0, 40, 0, 40)
+    else
+        AvatarBack.Size = UDim2.new(0, 48, 0, 48)
+    end
+    AvatarBack.Position = UDim2.new(0, 0, 0.5, -AvatarBack.Size.Y.Offset/2)
     AvatarBack.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     AvatarBack.Parent = UserFrame
     AddCorner(AvatarBack, UDim.new(1, 0))
 
     local Img = Instance.new("ImageLabel")
-    Img.Size = UDim2.new(0, 44, 0, 44)
-    Img.Position = UDim2.new(0.5, -22, 0.5, -22)
+    if isMobile then
+        Img.Size = UDim2.new(0, 36, 0, 36)
+    else
+        Img.Size = UDim2.new(0, 44, 0, 44)
+    end
+    Img.Position = UDim2.new(0.5, -Img.Size.X.Offset/2, 0.5, -Img.Size.Y.Offset/2)
     Img.Image = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
     Img.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     Img.Parent = AvatarBack
@@ -2379,47 +2499,53 @@ function StartV3NENOHUB()
     local Welcome = Instance.new("TextLabel")
     Welcome.Parent = UserFrame
     Welcome.Position = UDim2.new(0.42, 0, 0.28, 0)
-    Welcome.Size = UDim2.new(0.55, 0, 0, 15)
+    if isMobile then
+        Welcome.Size = UDim2.new(0.55, 0, 0, 12)
+        Welcome.TextSize = 10
+    else
+        Welcome.Size = UDim2.new(0.55, 0, 0, 15)
+        Welcome.TextSize = 13
+    end
     Welcome.Text = "Welcome,"
     Welcome.TextColor3 = Color3.fromRGB(150, 150, 150)
     Welcome.Font = Enum.Font.SourceSans
-    Welcome.TextSize = 13
     Welcome.BackgroundTransparency = 1
     Welcome.TextXAlignment = Enum.TextXAlignment.Left
 
     local UserName = Instance.new("TextLabel")
     UserName.Parent = UserFrame
     UserName.Position = UDim2.new(0.42, 0, 0.48, 0)
-    UserName.Size = UDim2.new(0.55, 0, 0, 15)
+    if isMobile then
+        UserName.Size = UDim2.new(0.55, 0, 0, 12)
+        UserName.TextSize = 11
+    else
+        UserName.Size = UDim2.new(0.55, 0, 0, 15)
+        UserName.TextSize = 14
+    end
     UserName.Text = LocalPlayer.Name
     UserName.TextColor3 = Color3.fromRGB(255, 255, 255)
     UserName.Font = Enum.Font.SourceSansBold
-    UserName.TextSize = 14
     UserName.BackgroundTransparency = 1
     UserName.TextXAlignment = Enum.TextXAlignment.Left
 
     local CloseBtn = Instance.new("TextButton")
     CloseBtn.Parent = MainFrame
     CloseBtn.Text = "X"
-    CloseBtn.Size = UDim2.new(0, 32, 0, 32)
-    CloseBtn.Position = UDim2.new(0.93, 0, 0.02, 0)
+    if isMobile then
+        CloseBtn.Size = UDim2.new(0, 26, 0, 26)
+        CloseBtn.Position = UDim2.new(0.94, 0, 0.02, 0)
+        CloseBtn.TextSize = 14
+    else
+        CloseBtn.Size = UDim2.new(0, 32, 0, 32)
+        CloseBtn.Position = UDim2.new(0.97, -35, 0.02, 0)
+        CloseBtn.TextSize = 18
+    end
     CloseBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     CloseBtn.Font = Enum.Font.SourceSansBold
-    CloseBtn.TextSize = 18
     AddCorner(CloseBtn, UDim.new(0, 6))
     
-    CloseBtn.MouseEnter:Connect(function()
-        CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-        CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end)
-    
-    CloseBtn.MouseLeave:Connect(function()
-        CloseBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-        CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end)
-
-    CloseBtn.MouseButton1Click:Connect(function()
+    local function onCloseClick()
         for _, conn in pairs(ActiveConnections) do
             pcall(function() conn:Disconnect() end)
         end
@@ -2450,12 +2576,16 @@ function StartV3NENOHUB()
         
         CleanupAnimalESP()
         
-        if mobileFloatingButton then
-            mobileFloatingButton:Destroy()
-            mobileFloatingButton = nil
+        if AimbotMobileFloatingButton then
+            AimbotMobileFloatingButton:Destroy()
+            AimbotMobileFloatingButton = nil
         end
         
-        -- Limpar recursos do aimbot
+        if MobileMinimizeButton then
+            MobileMinimizeButton:Destroy()
+            MobileMinimizeButton = nil
+        end
+        
         CleanupAimbot()
         
         if OverpowerGunsEnabled then
@@ -2463,41 +2593,40 @@ function StartV3NENOHUB()
         end
         
         ScreenGui:Destroy()
-        Notify("PANEL CLOSED")
-    end)
-
-    local toggleConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == ToggleKey then
-            MainFrame.Visible = not MainFrame.Visible
-        end
-    end)
-    table.insert(ActiveConnections, toggleConnection)
-
-    task.spawn(function()
-        task.wait(1)
+    end
+    
+    CloseBtn.MouseButton1Click:Connect(onCloseClick)
+    
+    if not isMobile then
+        CloseBtn.MouseEnter:Connect(function()
+            CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+            CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end)
         
-        -- Notificações baseadas no dispositivo
-        if isMobile then
-            Notify("📱 V3NENO HUB - DISPOSITIVO MOBILE DETECTADO")
-            Notify("USE OS RECURSOS MOBILE NO MENU")
-            -- Criar botão flutuante do aimbot mobile se estiver ativado
-            if AimbotMobileAlwaysOn then
-                CreateAimbotMobileFloatingButton(ScreenGui)
+        CloseBtn.MouseLeave:Connect(function()
+            CloseBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end)
+    end
+
+    local toggleConnection
+    if UserInputService then
+        toggleConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if not gameProcessed and input.KeyCode == ToggleKey then
+                MainFrame.Visible = not MainFrame.Visible
+                if MobileMinimizeButton and MobileMinimizeButton:FindFirstChild("StatusLabel") then
+                    if MainFrame.Visible then
+                        MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+                        MobileMinimizeButton:FindFirstChild("StatusLabel").Text = "HIDE"
+                    else
+                        MobileMinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                        MobileMinimizeButton:FindFirstChild("StatusLabel").Text = "SHOW"
+                    end
+                end
             end
-        else
-            Notify("💻 V3NENO HUB - DISPOSITIVO DESKTOP DETECTADO")
-        end
-        
-        Notify("PRESSIONE " .. ToggleKey.Name .. " PARA ABRIR/FECHAR MENU")
-        Notify("VERSÃO 3.0 WESTBOUND - CARREGADA COM SUCESSO")
-        
-        -- Informações específicas do aimbot
-        if isMobile then
-            Notify("AIMBOT MOBILE: ATIVE NO MENU PARA BOTÃO FLUTUANTE")
-        else
-            Notify("AIMBOT DESKTOP: TECLA " .. AimBind.Name .. " (ALTERÁVEL)")
-        end
-    end)
+        end)
+        table.insert(ActiveConnections, toggleConnection)
+    end
 end
 
 CreateLoginPanel()
